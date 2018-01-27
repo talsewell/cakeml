@@ -92,9 +92,10 @@ val compile_def = Define`
     | SOME prog =>
        let _ = empty_ffi (strlit "finished: lexing and parsing") in
        case infertype_prog c.inferencer_config (prelude ++ prog) of
-       | Failure (Exc (locs, msg)) =>
+    (* | Failure (Exc (locs, msg)) =>
            Failure (TypeError (concat [msg; implode " at "; locs_to_string locs]))
-       | Success ic =>
+       | Success ic => *)
+       | _ =>
           let _ = empty_ffi (strlit "finished: type inference") in
           case backend$compile c.backend_config (prelude ++ prog) of
           | NONE => Failure CompileError
