@@ -407,9 +407,15 @@ val word_gc_partial_or_full_def = Define `
                 (list_Seq partial_code)
                 (list_Seq full_code)]`;
 
+val assign_gen_size_def = Define `
+  assign_gen_size gc_kind =
+    dtcase gc_kind of
+      Generational gs => const_inst 1 ((get_gen_size gs):'a word)
+    | _ => Get 1 ConfOfGC`
+
 val SetNewTrigger_def = Define `
-  SetNewTrigger (endh:num) (ib:num) gs =
-    list_Seq [const_inst 1 ((get_gen_size gs):'a word);
+  SetNewTrigger (endh:num) (ib:num) gc_kind =
+   (list_Seq [assign_gen_size gc_kind;
               Get 7 AllocSize;
               move 4 endh;
               sub_inst 4 ib;
@@ -421,12 +427,21 @@ val SetNewTrigger_def = Define `
                      (Set TriggerGC endh)))
                 (If Lower 4 (Reg 1)
                    (Set TriggerGC endh)
-                   (Seq (add_inst 1 ib) (Set TriggerGC 1)))]`
+                   (Seq (add_inst 1 ib) (Set TriggerGC 1)))]):'a stackLang$prog`
+
+val gc_implementation_def = Define `
+  gc_implementation gc_kind gc_none gc_simple gc_gen_partial gc_gen_full =
+    dtcase gc_kind of
+    | None => gc_none
+    | Simple => gc_simple
+    | Generational gen_sizes =>
+        word_gc_partial_or_full gen_sizes gc_gen_partial gc_gen_full
+    | Swappable => gc_simple (* TODO: fix *)`;
 
 val word_gc_code_def = Define `
   word_gc_code conf =
-    dtcase conf.gc_kind of
-    | None =>
+    gc_implementation conf.gc_kind
+        (* None *)
         (list_Seq
               [Set AllocSize 1;
                Get 2 CurrHeap;
@@ -434,7 +449,7 @@ val word_gc_code_def = Define `
                Set TriggerGC 2;
                Set EndOfHeap 2;
                If Test 1 (Reg 1) Skip (Seq (const_inst 1 1w) (Halt 1))])
-    | Simple =>
+        (* Simple *)
         (list_Seq
               [Set AllocSize 1;
                Set NextFree 0;
@@ -466,9 +481,7 @@ val word_gc_code_def = Define `
                Get 1 AllocSize;
                sub_inst 2 8;
                If Lower 2 (Reg 1) (Seq (const_inst 1 1w) (Halt 1)) Skip ])
-    | Generational gen_sizes =>
-        (word_gc_partial_or_full gen_sizes
-              (* gen_gc_partial *)
+        (* Generational -- partial *)
               [Set AllocSize 1;
                Set NextFree 0;
                Get 4 GenStart;
@@ -506,7 +519,7 @@ val word_gc_code_def = Define `
                Set NextFree 3;
                Get 8 EndOfHeap;
                Get 2 TriggerGC;
-               SetNewTrigger 8 3 gen_sizes;
+               SetNewTrigger 8 3 conf.gc_kind;
                const_inst 1 0w;
                Set (Temp 0w) 1;
                Set (Temp 1w) 1;
@@ -521,7 +534,7 @@ val word_gc_code_def = Define `
                                  the full collector below can hit a state
                                  where there is not enough memory, and so it
                                  can Halt execution. *)]
-              (* gen_gc_full *)
+        (* Generational -- full *)
               [Set AllocSize 1;
                Set NextFree 0;
                const_inst 1 (0w:'a word);
@@ -568,7 +581,7 @@ val word_gc_code_def = Define `
                move 8 3;
                sub_inst 8 1;
                Set GenStart 8;
-               SetNewTrigger 2 3 gen_sizes;
+               SetNewTrigger 2 3 conf.gc_kind;
                const_inst 1 0w;
                Set (Temp 0w) 1;
                Set (Temp 1w) 1;
@@ -580,7 +593,7 @@ val word_gc_code_def = Define `
                Get 1 AllocSize;
                Get 2 TriggerGC;
                sub_inst 2 3;
-               If Lower 2 (Reg 1) (Seq (const_inst 1 1w) (Halt 1)) Skip ])
+               If Lower 2 (Reg 1) (Seq (const_inst 1 1w) (Halt 1)) Skip ]
                  :'a stackLang$prog`
 
 val stubs_def = Define `

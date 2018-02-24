@@ -11,7 +11,8 @@ val _ = Datatype `
   gc_kind =
     None
   | Simple
-  | Generational (num list) (* sizes of generations, smallest first *)`
+  | Generational (num list) (* sizes of generations, smallest first *)
+  | Swappable (* GC impl can be changed at runtime, starts as Simple *)`
 
 val _ = Datatype `
   config = <| tag_bits : num (* in each pointer *)
@@ -823,6 +824,7 @@ val get_gen_size_def = Define `
      if w2n (bytes_in_word:'a word) * x < dimword (:'a)
      then bytes_in_word * n2w x
      else bytes_in_word * (-1w))`;
+
 val fp_cmp_inst_def = Define `
   fp_cmp_inst FP_Less = FPLess 3 0 1 /\
   fp_cmp_inst FP_LessEqual = FPLessEqual 3 0 1 /\

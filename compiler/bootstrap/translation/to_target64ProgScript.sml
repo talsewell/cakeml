@@ -245,6 +245,8 @@ open stack_allocTheory
 
 val inline_simp = SIMP_RULE std_ss [bytes_in_word_def,
                                     backend_commonTheory.word_shift_def]
+val _ = translate (assign_gen_size_def |> inline_simp |> conv64)
+val _ = translate (gc_implementation_def |> inline_simp |> conv64)
 val _ = translate (SetNewTrigger_def |> inline_simp |> conv64)
 val _ = translate (conv64 clear_top_inst_def)
 val _ = translate (memcpy_code_def |> inline_simp |> conv64)

@@ -740,6 +740,8 @@ val add_backend_compset = computeLib.extend_compset
     ,stack_allocTheory.comp_def
     ,stack_allocTheory.next_lab_def
     ,stack_allocTheory.stubs_def
+    ,stack_allocTheory.assign_gen_size_def
+    ,stack_allocTheory.gc_implementation_def
     ,stack_allocTheory.SetNewTrigger_def
     ,stack_allocTheory.word_gc_code_def
     ,stack_allocTheory.word_gc_partial_or_full_def
