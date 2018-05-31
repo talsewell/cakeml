@@ -123,6 +123,7 @@ val data_compile_correct = Q.store_thm("data_compile_correct",
       ?t1 res1.
         (wordSem$evaluate (FST (comp c n l prog),t) = (res1,t1)) /\
         (res1 = SOME NotEnoughSpace ==>
+           (* TODO: ... < s1.max_live /\ *)
            t1.ffi.io_events ≼ s1.ffi.io_events ∧
            (IS_SOME t1.ffi.final_event ⇒ t1.ffi = s1.ffi)) /\
         (res1 <> SOME NotEnoughSpace ==>
