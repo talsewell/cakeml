@@ -4,42 +4,51 @@ local open bvlSemTheory bvlPropsTheory bviSemTheory in end;
 val _ = new_theory"dataSem";
 
 val _ = Datatype `
-  stack = Env (bvlSem$v num_map)
-        | Exc (bvlSem$v num_map) num`;
+  v =
+    Number int              (* integer *)
+  | Word64 word64
+  | Block num num (v list)  (* cons block: timestamp, tag and payload *)
+  | CodePtr num             (* code pointer *)
+  | RefPtr num              (* pointer to ref cell *)`;
+
+val _ = Datatype `
+  stack = Env (v num_map)
+        | Exc (v num_map) num`;
 
 val _ = Datatype `
   state =
-    <| locals  : bvlSem$v num_map
-     ; stack   : stack list
-     ; global  : num option
-     ; handler : num
-     ; refs    : num |-> bvlSem$v ref
-     ; compile : 'c -> (num # num # dataLang$prog) list -> (word8 list # word64 list # 'c) option
+    <| locals     : v num_map
+     ; stack      : stack list
+     ; global     : num option
+     ; handler    : num
+     ; refs       : num |-> v ref
+     ; compile    : 'c -> (num # num # dataLang$prog) list -> (word8 list # word64 list # 'c) option
      ; compile_oracle : num -> 'c # (num # num # dataLang$prog) list
-     ; clock   : num
-     ; code    : (num # dataLang$prog) num_map
-     ; ffi     : 'ffi ffi_state
-     ; space   : num |> `
+     ; clock      : num
+     ; code       : (num # dataLang$prog) num_map
+     ; ffi        : 'ffi ffi_state
+     ; space      : num
+     ; next_stamp : num
+     ; max_live   : num |> `
 
 val s = ``(s:('c,'ffi) dataSem$state)``
 
-val data_to_bvi_def = Define `
-  data_to_bvi ^s =
-    <| refs := s.refs
-     ; clock := s.clock
-     ; code := map (K ARB) s.code
-     ; ffi := s.ffi
-     ; global := s.global |> : ('c,'ffi) bviSem$state`;
+val v_stamps_def = Define `
+  v_stamps (Block stamp _ xs) = (SOME stamp, LENGTH xs) :: FLAT (MAP v_stamps xs) /\
+  v_stamps (Number n) = ... /\
+  v_stamps _ = 0`
 
-val bvi_to_data_def = Define `
-  (bvi_to_data:('c,'ffi) bviSem$state->('c,'ffi) dataSem$state->('c,'ffi) dataSem$state) s t =
-    t with <| refs := s.refs
-            ; clock := s.clock
-            ; ffi := s.ffi
-            ; global := s.global |>`;
+val env_size_def = Define `
+  env_size (env:v num_map) =
+     SUM (MAP (v_heap_size o SND) (toAList env)) : num`;
+
+val curr_live_def = Define `
+  curr_live s = env_size s.locals + ARB`
 
 val add_space_def = Define `
-  add_space ^s k = s with space := k`;
+  add_space ^s k =
+    s with <| space := k
+            ; max_live := MAX s.max_live (curr_live s) |>`;
 
 val consume_space_def = Define `
   consume_space k ^s =
@@ -47,7 +56,7 @@ val consume_space_def = Define `
 
 val do_space_def = Define `
   do_space op l ^s =
-    if op_space_reset op then SOME (s with space := 0)
+    if op_space_reset op then SOME (add_space s 0)
     else if op_space_req op l = 0 then SOME s
          else consume_space (op_space_req op l) s`;
 
@@ -177,7 +186,8 @@ val evaluate_def = tDefine "evaluate" `
      | NONE => (SOME (Rerr(Rabort Rtype_error)),s)
      | SOME v => (NONE, set_var dest v s)) /\
   (evaluate (Assign dest op args names_opt,s) =
-     if op_requires_names op /\ IS_NONE names_opt then (SOME (Rerr(Rabort Rtype_error)),s) else
+     if op_requires_names op /\ IS_NONE names_opt
+     then (SOME (Rerr(Rabort Rtype_error)),s) else
      case cut_state_opt names_opt s of
      | NONE => (SOME (Rerr(Rabort Rtype_error)),s)
      | SOME s =>
@@ -193,7 +203,7 @@ val evaluate_def = tDefine "evaluate" `
   (evaluate (MakeSpace k names,s) =
      case cut_env names s.locals of
      | NONE => (SOME (Rerr(Rabort Rtype_error)),s)
-     | SOME env => (NONE,add_space s k with locals := env)) /\
+     | SOME env => (NONE,add_space (s with locals := env) k)) /\
   (evaluate (Raise n,s) =
      case get_var n s.locals of
      | NONE => (SOME (Rerr(Rabort Rtype_error)),s)
