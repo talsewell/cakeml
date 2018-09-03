@@ -9,7 +9,7 @@ val () = wordsLib.guess_lengths()
 
 val bytes_in_memory_thm = Q.prove(
    `!w s state a b c d.
-      target_state_rel ag32_target s state /\
+      target_state_rel ag32_target s (SOME state) /\
       bytes_in_memory s.pc [a; b; c; d] s.mem s.mem_domain ==>
       aligned 2 state.PC /\
       (state.MEM state.PC = a) /\
@@ -29,7 +29,7 @@ val bytes_in_memory_thm = Q.prove(
 
 val bytes_in_memory_thm2 = Q.prove(
    `!w s state a b c d.
-      target_state_rel ag32_target s state /\
+      target_state_rel ag32_target s (SOME state) /\
       bytes_in_memory (s.pc + w) [a; b; c; d] s.mem s.mem_domain ==>
       (state.MEM (state.PC + w) = a) /\
       (state.MEM (state.PC + w + 1w) = b) /\
@@ -162,7 +162,10 @@ val ag32_target_ok = Q.prove (
         Cases_on `ri` \\ Cases_on `cmp`,
         Cases_on `0w <= w1` \\ Cases_on `0w <= w2`,
         Cases_on `0xFFFFFFE0w <= w1 + 0xFFFFFFFCw /\ w1 + 0xFFFFFFFCw < 32w`
-        \\ Cases_on `0xFFFFFFE0w <= w2 + 0xFFFFFFFCw /\ w2 + 0xFFFFFFFCw < 32w`
+        \\ Cases_on `0xFFFFFFE0w <= w2 + 0xFFFFFFFCw /\ w2 + 0xFFFFFFFCw < 32w`,
+        Cases_on`ms1` \\ Cases_on`ms2`
+        \\ fs[ag32_proj_def,set_sepTheory.fun2set_eq],
+        Cases_on`ms1` \\ Cases_on`ms2` \\ fs[ag32_proj_def]
    ]
    \\ lfs (enc_rwts @ encode_extra_rwts)
    \\ rw []
@@ -196,6 +199,12 @@ val shiftT_thm = Q.prove(
           BIT 1 (shiftT2num shiftOp); BIT 0 (shiftT2num shiftOp)] : word4))) =
      shiftOp`,
   Cases \\ simp_tac (srw_ss()++bitstringLib.v2w_n2w_ss) [])
+
+val target_state_rel_SOME = Q.store_thm("target_state_rel_SOME",
+  `target_state_rel ag32_target s1 x ⇒
+   ∃ms. x = SOME ms`,
+  rw[asmPropsTheory.target_state_rel_def]
+  \\ fs[ag32_target_def, ag32_ok_def, miscTheory.option_case_NONE_F] );
 
 fun tac q l = qmatch_goalsub_rename_tac q \\ MAP_EVERY Cases_on l
 
@@ -242,13 +251,43 @@ val ag32_run = Q.prove(
         wordsTheory.WORD_LS_word_T]
   )
 
+val ag32_run_ni = Q.prove(
+  `∀i ms.
+     i <> Interrupt /\
+     (ms.MEM ms.PC = (7 >< 0) (Encode i)) /\
+     (ms.MEM (ms.PC + 1w) = (15 >< 8) (Encode i)) /\
+     (ms.MEM (ms.PC + 2w) = (23 >< 16) (Encode i)) /\
+     (ms.MEM (ms.PC + 3w) = (31 >< 24) (Encode i)) /\
+     aligned 2 ms.PC ==>
+     (NextNI (SOME ms) = SOME (Run i ms))`,
+  rw[NextNI_def, concat_bytes, aligned_pc, Decode_Encode]);
+
+val OPTION_MAP_SOME_lemma = Q.prove(
+  `(!i x. OPTION_MAP f (g i x) = OPTION_MAP f x) ==>
+   (!i z. OPTION_MAP f (g i (SOME z)) = SOME (f z))`,
+   rw[]
+   \\ first_x_assum(qspecl_then[`i`,`SOME z`]mp_tac)
+   \\ rw[]);
+
+val EXISTS_SOME_lemma = Q.prove(
+  `(!i z. (∃x. (f i (SOME z) = SOME x) ∧ (P z  = P x))) ⇔
+   (!i z. (∃x. f i (SOME z) = SOME x) ∧ (P (THE (f i (SOME z))) = P z))`,
+  rw[EQ_IMP_THM, PULL_EXISTS]
+  \\ first_x_assum(qspecl_then[`i`,`z`]mp_tac)
+  \\ rw[] \\ rw[] \\ rfs[]);
+
+val option_case_NONE_F_THE = Q.prove(
+  `(case X of NONE => F | SOME x => P x) ⇔ (∃x. X = SOME x) ∧ (P (THE X))`,
+  rw[miscTheory.option_case_NONE_F, EQ_IMP_THM] \\ fs[]);
+
 local
-  val ms = ``ms: ag32_state``
+  val ms = ``the_state: ag32_state``
   val thms =
     List.map (DB.fetch "ag32")
      (List.filter (fn s => not (Lib.mem s ["Next_def", "Encode_def"]))
         (#C (ag32Theory.inventory)))
   val is_ag32_next = #4 (HolKernel.syntax_fns1 "ag32" "Next")
+  val is_ag32_next_ni = #4 (HolKernel.syntax_fns1 "ag32_target" "NextNI")
 in
   fun next_state_tac (asl, g) =
     let
@@ -261,16 +300,19 @@ in
                 | NONE => bytes_in_memory_thm
       val i = l |> hd |> rand |> rand
       val the_state =
-        case asmLib.find_env is_ag32_next g of
+        case asmLib.find_env is_ag32_next_ni g of
            SOME (t, tm) => ``env ^t ^tm : ag32_state``
          | NONE => ms
     in
       imp_res_tac th
-      \\ assume_tac (Drule.SPECL [i, the_state] ag32_run)
+      \\ assume_tac (Drule.SPECL [i, the_state] ag32_run_ni)
       \\ NO_STRIP_REV_FULL_SIMP_TAC (srw_ss()++boolSimps.LET_ss)
            ([set_sepTheory.fun2set_eq, alignmentTheory.aligned_numeric] @ thms)
       \\ pop_assum kall_tac
       \\ Tactical.PAT_X_ASSUM x_tm kall_tac
+      \\ first_x_assum(assume_tac o SIMP_RULE(srw_ss())[ag32_targetTheory.ag32_proj_def,
+                                                        set_sepTheory.fun2set_eq] o
+                       CONV_RULE (HO_REWR_CONV EXISTS_SOME_lemma))
     end (asl, g)
 end
 
@@ -278,6 +320,8 @@ val state_tac =
   NO_STRIP_FULL_SIMP_TAC (srw_ss())
      [asmPropsTheory.sym_target_state_rel, ag32_target_def,
       asmPropsTheory.all_pcs, ag32_ok_def, ag32_config,
+      ag32_targetTheory.ag32_proj_def,
+      option_case_NONE_F_THE,
       combinTheory.APPLY_UPDATE_THM, alignmentTheory.aligned_numeric,
       alignmentTheory.align_aligned, set_sepTheory.fun2set_eq,
       wordsTheory.WORD_LS_word_T, load_lem, load_lem3, store_lem2]
@@ -305,10 +349,13 @@ local
          val n = numLib.term_of_int (j - 1)
       in
          exists_tac n
+         \\ drule target_state_rel_SOME
+         \\ disch_then(qx_choose_then`the_state`SUBST_ALL_TAC)
          \\ simp_tac (srw_ss()++boolSimps.CONJ_ss)
               [asmPropsTheory.asserts_eval,
-               asmPropsTheory.interference_ok_def, ag32_proj_def]
-         \\ NTAC 2 strip_tac
+               asmPropsTheory.interference_ok_def]
+         \\ strip_tac
+         \\ disch_then (assume_tac o HO_MATCH_MP OPTION_MAP_SOME_lemma)
          \\ NTAC i (split_bytes_in_memory_tac 4)
          \\ NTAC j next_state_tac
       end gs

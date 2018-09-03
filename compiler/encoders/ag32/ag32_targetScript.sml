@@ -6,7 +6,7 @@ val () = new_theory "ag32_target"
 (* --- Valid Ag32 states --- *)
 
 val ag32_ok_def = Define`
-  ag32_ok ms <=> aligned 2 ms.PC`
+  ag32_ok x <=> case x of SOME ms => aligned 2 ms.PC | NONE => F`
 
 (* Possible initial states for Ag32, not placed in the L3 ISA because it was
    difficult to express this concisely there *)
@@ -212,15 +212,28 @@ val ag32_proj_def = Define`
    ag32_proj d s =
    (s.PC, s.R, fun2set (s.MEM, d), s.CarryFlag, s.OverflowFlag)`
 
+val (_,xs) =
+  ag32Theory.Next_def
+  |> SPEC_ALL |> concl |> rhs
+  |> strip_comb
+val (v,b) = dest_abs(List.hd xs)
+val itm = boolSyntax.mk_let(mk_abs(v,rand(rator b)),el 2 xs)
+
+val NextNI_def = Define`
+  NextNI x =
+    OPTION_BIND x (λstate.
+      let i = ^itm in if (i = Interrupt)
+      then NONE else SOME (Run i state))`
+
 val ag32_target_def = Define`
    ag32_target =
-   <| next := ag32$Next
+   <| next := NextNI
     ; config := ag32_config
-    ; get_pc := ag32_state_PC
-    ; get_reg := (\s. s.R o n2w)
-    ; get_byte := ag32_state_MEM
+    ; get_pc := ag32_state_PC o THE
+    ; get_reg := (\s. s.R o n2w) o THE
+    ; get_byte := ag32_state_MEM o THE
     ; state_ok := ag32_ok
-    ; proj := ag32_proj
+    ; proj := (\d x. OPTION_MAP (ag32_proj d) x)
     |>`
 
 val (ag32_config, ag32_asm_ok) = asmLib.target_asm_rwts [] ``ag32_config``

@@ -110,7 +110,9 @@ val interference_implemented_def = Define`
     (∀n. mc.ccache_interfer n = ccache_interfer) ∧
     (∀n. mc.ffi_interfer n = ffi_interfer) ∧
     ∀ms k0. (ms = FUNPOW mc.target.next k0 ms0) ⇒
-      (mc.target.get_pc ms ∈ mc.prog_addresses ⇒
+      (mc.target.get_pc ms ∈ mc.prog_addresses ∧
+       mc.target.state_ok ms
+      ⇒
         ∃k. (next_interfer (mc.target.next ms)
              = FUNPOW mc.target.next k (mc.target.next ms)) ∧
             (ffi_rel ms = ffi_rel (mc.target.next ms)) ∧
@@ -1881,7 +1883,6 @@ val hello_ag32_next = Q.store_thm("hello_ag32_next",
   \\ first_x_assum(mp_then Any mp_tac (GEN_ALL machine_sem_Terminate_FUNPOW_next))
   \\ disch_then(qspec_then`ag32_ffi_rel r0`mp_tac)
   \\ impl_tac >- (
-    (*
     conj_tac
     >- (
       simp[interference_implemented_def, Abbr`mc`]
@@ -1898,7 +1899,6 @@ val hello_ag32_next = Q.store_thm("hello_ag32_next",
         \\ qexists_tac`0`
         \\ simp[]
         \\ irule ag32_ffi_rel_unchanged
-        \\ qspecl_then[`r0`,`ms0`]mp_tac hello_startup_clock_def
         \\ impl_tac >- fs[] \\ strip_tac
 *)
 cheat
