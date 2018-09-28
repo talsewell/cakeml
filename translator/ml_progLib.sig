@@ -64,4 +64,12 @@ sig
   val define_abbrev : bool -> string -> term -> thm
 
   val pick_name : string -> string
+
+  (* for timing and debugging *)
+  val trace_timing_to : string option ref
+  val timing_comment : string -> unit
+  val start_timing : string -> (string * string * Portable.time) option
+  val end_timing : (string * string * Portable.time) option -> unit
+  val do_timing : string -> ('a -> 'b) -> 'a -> 'b
+
 end

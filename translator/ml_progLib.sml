@@ -54,6 +54,46 @@ fun ok_char c =
 val ml_name = String.translate
   (fn c => if ok_char c then implode [c] else "c" ^ int_to_string (ord c))
 
+(* timing output *)
+
+val trace_timing_to = ref (NONE : string option)
+
+fun timing_comment s = case ! trace_timing_to of
+  SOME fname => let
+    val f = TextIO.openAppend fname
+  in
+    TextIO.output (f, s ^ "\n");
+    TextIO.closeOut f
+  end | NONE => ()
+
+fun start_timing nm = case ! trace_timing_to of
+  SOME fname => let
+    val time = Portable.timestamp ()
+    val f = TextIO.openAppend fname
+    val time_s = Portable.time_to_string time
+  in TextIO.output (f, time_s ^ ": began " ^ nm ^ "\n");
+    TextIO.closeOut f;
+    SOME (fname, nm, time)
+  end | NONE => NONE
+
+fun end_timing t = case t of
+  SOME (fname, nm, start_time) => let
+    val time = Portable.timestamp ()
+    val f = TextIO.openAppend fname
+    val time_s = Portable.time_to_string time
+    val dur_s = Portable.time_to_string (time - start_time)
+  in TextIO.output (f, time_s ^ ": finished " ^ nm ^ "\n");
+    TextIO.output (f, "  -- duration of " ^ nm ^ ": " ^ dur_s ^ "\n");
+    TextIO.closeOut f
+  end | NONE => ()
+
+fun do_timing nm f x = let
+    val start = start_timing nm
+    val r = f x
+  in end_timing start; r end
+
+(* abbrevs/wrapper definitions *)
+
 fun define_abbrev for_eval name tm = let
   val name = ml_name name
   val name = (if is_const_str name then find_name name else name)
@@ -108,6 +148,7 @@ fun cond_env_abbrev dest conv name th = let
        (* derive theorem for computeLib *)
        val xs = nsLookup_eq_format |> SPEC env_const |> concl
                    |> find_terms is_eq |> map (fst o dest_eq)
+       val _ = timing_comment ("length of xs " ^ Int.toString (length xs))
        fun derive_rewrite tm = let
          val lemma = (REWRITE_CONV
                       ([def,nsLookup_write_cons,nsLookup_write,
@@ -115,7 +156,9 @@ fun cond_env_abbrev dest conv name th = let
                        @ (get_fast_rewrites ())) THENC SIMP_CONV (srw_ss()) []) tm
          val _ = add_fast_rewrite lemma
          in lemma end
-       val compute_th = LIST_CONJ (map derive_rewrite xs)
+       val compute_th = LIST_CONJ (do_timing "cond_env_abbrev derive_rewrite"
+            (map derive_rewrite) xs)
+       val _ = timing_comment ("compute_th: " ^ Parse.thm_to_string compute_th)
        val thm_name = "nsLookup_" ^ fst (dest_const env_const)
        val _ = save_thm(thm_name ^ "[compute]",compute_th)
        in (th,[def]) end end
@@ -125,13 +168,15 @@ val (ML_code (ss,envs,vs,th)) = (ML_code (ss,envs,v_def :: vs,th))
 *)
 
 fun clean (ML_code (ss,envs,vs,th)) = let
-  val (th,new_ss) = cond_abbrev (rand o concl)
-                      RAND_CONV reduce_conv "auto_state" th
+  val start = start_timing "cleaning"
+  val (th,new_ss) = do_timing "cond_abbrev" (cond_abbrev (rand o concl)
+                      RAND_CONV reduce_conv "auto_state") th
   val dest = (rand o rator o concl)
   val conv = (RATOR_CONV o RAND_CONV)
   val name = "auto_env"
-  val (th,new_envs) = cond_env_abbrev dest conv name th
-  val th = REWRITE_RULE [ML_code_env_def] th
+  val (th,new_envs) = do_timing "cond_env_abbrev"
+    (cond_env_abbrev dest conv name) th
+  val th = do_timing "REWRITE_RULE" (REWRITE_RULE [ML_code_env_def]) th
   in ML_code (new_ss @ ss, new_envs @ envs, vs,  th) end
 
 (* --- *)
@@ -197,12 +242,16 @@ fun add_Dtabbrev loc l1_tm l2_tm l3_tm (ML_code (ss,envs,vs,th)) = let
   in clean (ML_code (ss,envs,vs,th)) end
 
 fun add_Dlet eval_thm var_str v_thms (ML_code (ss,envs,vs,th)) = let
+  val start = start_timing "add_Dlet"
   val th = MATCH_MP ML_code_Dlet_var th
            |> REWRITE_RULE [ML_code_env_def]
-  val th = MATCH_MP th eval_thm
+  val th = do_timing "add_Dlet(2nd MP)" (MATCH_MP th) eval_thm
            handle HOL_ERR _ => failwith "add_Dlet eval_thm does not match"
-  val th = th |> SPECL [stringSyntax.fromMLstring var_str,unknown_loc]
-  in clean (ML_code (ss,envs,v_thms @ vs,th)) end
+  val th = do_timing "add_Dlet(SPECL)"
+    (SPECL [stringSyntax.fromMLstring var_str,unknown_loc]) th
+  val st2 = do_timing "add_Dlet(clean)" clean (ML_code (ss,envs,v_thms @ vs,th))
+  val _ = end_timing start
+  in st2 end
 
 (*
 val (ML_code (ss,envs,vs,th)) = s
@@ -210,14 +259,19 @@ val (n,v,exp) = (v_tm,w,body)
 *)
 
 fun add_Dlet_Fun loc n v exp v_name (ML_code (ss,envs,vs,th)) = let
+  val start = start_timing "add_Dlet_Fun"
+  fun timing s = do_timing ("add_Dlet_Fun(" ^ s ^ ")")
   val th = MATCH_MP ML_code_Dlet_Fun th
            |> REWRITE_RULE [ML_code_env_def]
-  val th = SPECL [n,v,exp,loc] th
+  val th = timing "SPECL" (SPECL [n,v,exp,loc]) th
   val tm = th |> concl |> rator |> rand |> rator |> rand
-  val v_def = define_abbrev false v_name tm
-  val th = th |> CONV_RULE ((RATOR_CONV o RAND_CONV o RATOR_CONV o RAND_CONV)
-                   (REWR_CONV (GSYM v_def)))
-  in clean (ML_code (ss,envs,v_def :: vs,th)) end
+  val v_def = timing "define_abbrev" (define_abbrev false v_name) tm
+  val th = timing "CONV_RULE"
+    (CONV_RULE ((RATOR_CONV o RAND_CONV o RATOR_CONV o RAND_CONV)
+                   (REWR_CONV (GSYM v_def)))) th
+  val st2 = timing "clean" clean (ML_code (ss,envs,v_def :: vs,th))
+  val _ = end_timing start
+  in st2 end
 
 val Recclosure_pat =
   semanticPrimitivesTheory.v_nchotomy

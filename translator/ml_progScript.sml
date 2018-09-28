@@ -4,6 +4,7 @@ open astTheory libTheory semanticPrimitivesTheory
 open mlstringTheory integerTheory;
 open terminationTheory;
 open namespaceTheory;
+open balanced_mapTheory;
 
 val _ = new_theory "ml_prog";
 
@@ -34,7 +35,7 @@ val write_def = zDefine `
 
 val write_cons_def = zDefine `
   write_cons n d (env:v sem_env) =
-    (env with c := nsAppend (nsSing n d) env.c)`
+    (env with c := nsBind n d env.c)`
 
 val empty_env_def = zDefine `
   (empty_env:v sem_env) = <| v := nsEmpty ; c:= nsEmpty|>`;
@@ -762,5 +763,194 @@ val lookup_var_merge_env = Q.store_thm("lookup_var_merge_env",
        namespacePropsTheory.nsLookup_nsAppend_some,namespaceTheory.id_to_mods_def])
   \\ cheat (* TODO *)));
 *)
+
+val comparing_def = Define `
+  comparing ord f x y = ord (f x) (f y)`;
+
+val comparing_good = Q.store_thm ("comparing_good",
+  `!f ord. INJ f UNIV UNIV ⇒ good_cmp ord ⇒ good_cmp (comparing ord f)`,
+  fs [comparing_def, comparisonTheory.good_cmp_thm]
+    \\ metis_tac []);
+
+val id_to_xs_def = Define `
+  id_to_xs (Short sn) = ([], sn) /\
+  id_to_xs (Long bn iden2) = (\(ctxt, sn). (bn :: ctxt, sn)) (id_to_xs iden2)`;
+
+val id_ord_def = Define `
+  id_ord sn_ord bn_ord = comparing
+    (pair_cmp (list_cmp bn_ord) sn_ord) id_to_xs`;
+
+val id_to_xs_eq_imp = Q.store_thm ("id_to_xs_eq_imp",
+  `! iden1 iden2. id_to_xs iden1 = id_to_xs iden2 ⇒ iden1 = iden2`,
+  strip_tac
+  \\ induct_on `iden1`
+  \\ rpt strip_tac
+  \\ cases_on `iden2`
+  \\ fs[id_to_xs_def, UNCURRY, PAIR_FST_SND_EQ]);
+
+val INJ_id_to_xs = Q.store_thm ("INJ_id_to_xs",
+  `INJ id_to_xs UNIV UNIV`,
+  fs [INJ_IFF]
+  \\ metis_tac [id_to_xs_eq_imp]);
+
+val id_ord_good = Q.store_thm ("id_ord_good",
+  `!sn_ord bn_ord.
+    good_cmp sn_ord ⇒ good_cmp bn_ord ⇒ good_cmp (id_ord sn_ord bn_ord)`,
+  fs [id_ord_def, comparing_good, INJ_id_to_xs, comparisonTheory.list_cmp_good,
+    comparisonTheory.pair_cmp_good]
+  );
+
+val id_lookup_in_map_def = Define `
+  id_lookup_in_map sn_ord bn_ord map mmap iden = case iden of
+    | Short sn => balanced_map$lookup sn_ord sn map
+    | Long mn iden => (case balanced_map$lookup bn_ord mn mmap of
+      | NONE => NONE | SOME f => f iden)`;
+
+val nsModsOf_def = Define `
+  nsModsOf (Bind ns ms) = LIST_TO_SET (MAP FST ms)`;
+
+val nsModsOf_simps = Q.store_thm ("nsModsOf_simps",
+  `nsModsOf (nsBind n v ns) = nsModsOf ns /\
+    nsModsOf (nsAppend ns1 ns2) = (nsModsOf ns1 UNION nsModsOf ns2) /\
+    nsModsOf nsEmpty = EMPTY /\
+    nsModsOf (nsLift mn env) = {mn}`,
+  cases_on `ns`
+  \\ cases_on `ns1`
+  \\ cases_on `ns2`
+  \\ EVAL_TAC
+  \\ fs []);
+
+val lookup_eq_map_def = Define `
+  lookup_eq_map sn_ord bn_ord map mmap ns
+    = (good_cmp sn_ord /\ good_cmp bn_ord
+        /\ (!x y. (sn_ord x y = Equal) = (x = y))
+        /\ (!x y. (bn_ord x y = Equal) = (x = y))
+        /\ balanced_map$invariant sn_ord map
+        /\ balanced_map$invariant bn_ord mmap
+        /\ nsLookup ns = id_lookup_in_map sn_ord bn_ord map mmap
+        /\ nsModsOf ns = {k | balanced_map$member bn_ord k mmap})`;
+
+val lookup_eq_map_nsEmpty = Q.store_thm ("lookup_eq_map_empty",
+  `good_cmp sn_ord ==> good_cmp bn_ord ==>
+    (!x y. (sn_ord x y = Equal) = (x = y)) ==>
+    (!x y. (bn_ord x y = Equal) = (x = y)) ==>
+    lookup_eq_map sn_ord bn_ord (balanced_map$empty) (balanced_map$empty)
+      nsEmpty`,
+  rpt strip_tac
+  \\ fs [FUN_EQ_THM, lookup_eq_map_def, id_lookup_in_map_def, nsModsOf_simps]
+  \\ EVAL_TAC
+  \\ rpt strip_tac
+  \\ (fs [] \\ PURE_CASE_TAC \\ fs [])
+);
+
+val lookup_eq_map_nsBind = Q.store_thm ("lookup_eq_map_nsBind",
+  `lookup_eq_map sn_ord bn_ord m mm ns
+    ==> lookup_eq_map sn_ord bn_ord (balanced_map$insert sn_ord n v m) mm
+      (nsBind n v ns)`,
+  strip_tac
+  \\ fs [lookup_eq_map_def, balanced_mapTheory.insert_thm,
+    balanced_mapTheory.lookup_insert, nsLookupMod_nsBind,
+    id_lookup_in_map_def, FUN_EQ_THM, nsModsOf_simps]
+  \\ strip_tac
+  \\ rpt (PURE_CASE_TAC \\ fs []));
+
+val nsLookup_nsAppend_Long_nsModsOf = Q.store_thm
+  ("nsLookup_nsAppend_Long_nsModsOf",
+  `nsLookup (nsAppend ns1 ns2) (Long n iden) = (case nsLookup ns1 (Long n iden)
+    of SOME v => SOME v | NONE => if n IN nsModsOf ns1 then NONE
+      else nsLookup ns2 (Long n iden))`,
+  cases_on `ns1` \\ cases_on `ns2`
+  \\ fs [nsAppend_def, nsLookup_def, nsModsOf_def, ALOOKUP_APPEND]
+  \\ rpt (PURE_CASE_TAC \\ fs [ALOOKUP_NONE]
+    \\ fs [GSYM ALOOKUP_NONE]));
+
+val lookup_eq_map_nsAppend = Q.store_thm ("lookup_eq_map_nsAppend",
+  `lookup_eq_map sn_ord bn_ord m1 mm1 ns1
+    ==> lookup_eq_map sn_ord bn_ord m2 mm2 ns2
+    ==> lookup_eq_map sn_ord bn_ord (balanced_map$union sn_ord m1 m2)
+      (balanced_map$union bn_ord mm1 mm2) (nsAppend ns1 ns2)`,
+  fs [lookup_eq_map_def, balanced_mapTheory.insert_thm,
+    balanced_mapTheory.union_thm, nsLookupMod_nsBind,
+    id_lookup_in_map_def, pred_setTheory.EXTENSION, FUN_EQ_THM, nsModsOf_simps,
+    balanced_mapTheory.member_thm]
+  \\ rpt strip_tac
+  \\ (PURE_CASE_TAC
+    \\ fs [nsLookup_nsAppend_Short, nsLookup_nsAppend_Long_nsModsOf]
+    \\ fs [lookup_thm, union_thm, member_thm])
+  \\ rpt (PURE_CASE_TAC \\ fs [FUNION_DEF, FLOOKUP_DEF]));
+
+val lookup_eq_map_nsLift = Q.store_thm ("lookup_eq_map_nsLift",
+  `good_cmp sn_ord ==> good_cmp bn_ord ==>
+    (!x y. (sn_ord x y = Equal) = (x = y)) ==>
+    (!x y. (bn_ord x y = Equal) = (x = y)) ==>
+    lookup_eq_map sn_ord bn_ord (balanced_map$empty)
+      (balanced_map$singleton mn (nsLookup ns)) (nsLift mn ns)`,
+  rpt strip_tac
+  \\ fs [namespacePropsTheory.nsLookup_nsLift,
+    lookup_eq_map_def, nsModsOf_simps, FUN_EQ_THM, FLOOKUP_UPDATE,
+    id_lookup_in_map_def, balanced_mapTheory.member_thm,
+    balanced_mapTheory.lookup_thm, balanced_mapTheory.singleton_thm,
+    balanced_mapTheory.empty_thm, balanced_mapTheory.key_set_eq ]
+  \\ rpt strip_tac \\ rpt ( PURE_CASE_TAC \\ fs [])
+);
+
+val lookup_eq_map2_def = Define `
+  lookup_eq_map2 v_m v_mm c_m c_mm (env : v sem_env) =
+    (lookup_eq_map string_cmp string_cmp v_m v_mm env.v /\
+      lookup_eq_map string_cmp string_cmp c_m c_mm env.c)`;
+
+val lookup_eq_map2_write = Q.store_thm ("lookup_eq_map2_write",
+  `lookup_eq_map2 v_m v_mm c_m c_mm env ==>
+    lookup_eq_map2 (balanced_map$insert string_cmp n v v_m) v_mm c_m c_mm
+      (write n v env)`,
+  fs [lookup_eq_map2_def, write_def, lookup_eq_map_nsBind]);
+
+val lookup_eq_map2_write_cons = Q.store_thm ("lookup_eq_map2_write_cons",
+  `lookup_eq_map2 v_m v_mm c_m c_mm env ==>
+    lookup_eq_map2 v_m v_mm (balanced_map$insert string_cmp n c c_m) c_mm
+      (write_cons n c env)`,
+  fs [lookup_eq_map2_def, write_cons_def, lookup_eq_map_nsBind]);
+
+val lookup_eq_map2_empty_env = Q.store_thm ("lookup_eq_map2_empty_env",
+  `lookup_eq_map2 (balanced_map$empty) (balanced_map$empty)
+    (balanced_map$empty) (balanced_map$empty) empty_env`,
+  fs [lookup_eq_map2_def, empty_env_def, lookup_eq_map_nsEmpty,
+    comparisonTheory.string_cmp_good,
+    comparisonTheory.string_cmp_antisym]);
+
+val lookup_eq_map2_merge_env = Q.store_thm ("lookup_eq_map2_merge_env",
+  `lookup_eq_map2 v_m1 v_mm1 c_m1 c_mm1 env1 ==>
+    lookup_eq_map2 v_m2 v_mm2 c_m2 c_mm2 env2 ==>
+    lookup_eq_map2 (balanced_map$union string_cmp v_m1 v_m2)
+      (balanced_map$union string_cmp v_mm1 v_mm2)
+      (balanced_map$union string_cmp c_m1 c_m2)
+      (balanced_map$union string_cmp c_mm1 c_mm2)
+      (merge_env env1 env2)`,
+  fs [lookup_eq_map2_def, merge_env_def, lookup_eq_map_nsAppend]);
+
+val balanced_tree_union_empty = Q.store_thm ("balanced_tree_union_empty",
+  `balanced_map$union cmp balanced_map$empty v = v`,
+  EVAL_TAC);
+
+val balanced_tree_union_empty_helper = GEN_ALL (Q.prove (
+  `balanced_map$union string_cmp balanced_map$empty v = v`,
+  EVAL_TAC));
+
+val lookup_eq_map2_write_mod = Q.store_thm ("lookup_eq_map2_write_mod",
+  `lookup_eq_map2 v_m v_mm c_m c_mm env ==>
+    lookup_eq_map2
+      v_m (balanced_map$union string_cmp (balanced_map$singleton mn
+        (nsLookup mod_env.v)) v_mm)
+      c_m (balanced_map$union string_cmp (balanced_map$singleton mn
+        (nsLookup mod_env.c)) c_mm)
+      (write_mod mn mod_env env)`,
+  fs [lookup_eq_map2_def, write_mod_def]
+  \\ rpt strip_tac
+  \\ (simp_tac std_ss
+    [Once (GSYM (Q.SPEC `v_m` balanced_tree_union_empty_helper)),
+      Once (GSYM (Q.SPEC `c_m` balanced_tree_union_empty_helper))]
+    \\ irule (GEN_ALL lookup_eq_map_nsAppend)
+    \\ fs [lookup_eq_map_nsLift, balanced_tree_union_empty_helper])
+  );
 
 val _ = export_theory();

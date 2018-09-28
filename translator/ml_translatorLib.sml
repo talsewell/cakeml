@@ -693,36 +693,6 @@ in
 end
 
 
-(* timing output *)
-
-val trace_timing_to = ref (NONE : string option)
-
-fun start_timing nm = case ! trace_timing_to of
-  SOME fname => let
-    val time = Portable.timestamp ()
-    val f = TextIO.openAppend fname
-    val time_s = Portable.time_to_string time
-  in TextIO.output (f, time_s ^ ": began " ^ nm ^ "\n");
-    TextIO.closeOut f;
-    SOME (fname, nm, time)
-  end | NONE => NONE
-
-fun end_timing t = case t of
-  SOME (fname, nm, start_time) => let
-    val time = Portable.timestamp ()
-    val f = TextIO.openAppend fname
-    val time_s = Portable.time_to_string time
-    val dur_s = Portable.time_to_string (time - start_time)
-  in TextIO.output (f, time_s ^ ": finished " ^ nm ^ "\n");
-    TextIO.output (f, "  -- duration of " ^ nm ^ ": " ^ dur_s ^ "\n");
-    TextIO.closeOut f
-  end | NONE => ()
-
-fun do_timing nm f x = let
-    val start = start_timing nm
-    val r = f x
-  in end_timing start; r end
-
 (* code for loading and storing translations into a single thm *)
 
 fun check_uptodate_term tm =
@@ -2745,6 +2715,7 @@ val th = D res
 *)
 
 fun clean_assumptions th = let
+  val _ = timing_comment ("doing clean_assumptions on: " ^ Parse.thm_to_string th);
   val lhs1 = get_term "nsLookup_pat"
   val pattern1 = mk_eq(lhs1,mk_var("_",type_of lhs1))
   val lhs2 = lookup_cons_def (*lookup_cons_thm*) |> SPEC_ALL |> concl |> dest_eq |> fst
@@ -2771,6 +2742,8 @@ fun clean_assumptions th = let
   val th1 = th |> REWRITE_RULE [GSYM PreImpEval_def]
   val th2 = CONV_RULE (QCONV (LAND_CONV (ONCE_DEPTH_CONV move_Eval_conv))) th1
   val th = REWRITE_RULE [PreImpEval_def] th2
+  val _ = timing_comment ("result of clean_assumptions: " ^ Parse.thm_to_string th);
+  val _ = timing_comment ("result of clean_assumptions DISCH_ALL: " ^ Parse.thm_to_string (DISCH_ALL th));
   in th end;
 
 fun get_pre_var lhs fname = let
@@ -3702,7 +3675,7 @@ fun translate_main options translate register_type def = (let
   val _ = end_timing prep_start
   val info = map get_info defs
   val msg = comma (map (fn (fname,_,_,_,_) => fname) info)
-  val _ = do_timing ("noting msg " ^ msg) I ()
+  val _ = timing_comment ("translating funs: " ^ msg)
   (* derive deep embedding *)
   fun compute_deep_embedding info = let
     val _ = map (fn (fname,ml_fname,lhs,_,_) =>
@@ -3748,7 +3721,8 @@ val (fname,ml_fname,th,def) = hd thms
     in (fname,ml_fname,def,th,v) end
   val thms = do_timing "optimise+abstract" (map optimise_and_abstract) thms
   (* final phase: extract precondition, perform induction, store cert *)
-  val start_fin = start_timing "translate_main final phase"
+
+  val start_fin = start_timing "translate_main_cond_phase"
 
   val (is_fun,results) = if not is_rec then let
     (* non-recursive case *)
@@ -3887,6 +3861,7 @@ val (th,(fname,ml_fname,def,_,pre)) = hd (zip results thms)
   in (true,results) end
 
   val _ = end_timing start_fin
+  val _ = end_timing start
 
   fun check results = let
     val th = LIST_CONJ (map #4 results)
@@ -3928,7 +3903,8 @@ fun translate_options options def =
         |> rand |> rator |> rand
       val ii = INST [cl_env_tm |-> get_curr_env()]
       val v_names = map (fn x => find_const_name (#1 x ^ "_v")) results
-      val _ = ml_prog_update (add_Dletrec unknown_loc recc v_names)
+      val _ = do_timing "ml_prog_update" ml_prog_update
+        (add_Dletrec unknown_loc recc v_names)
       val v_defs = List.take(get_curr_v_defs (), length v_names)
       val jj = INST [env_tm |-> get_curr_env()]
   (*
@@ -3943,7 +3919,7 @@ fun translate_options options def =
         val pre_def = (case pre of NONE => TRUTH | SOME pre_def => pre_def)
         val _ = add_v_thms (fname,ml_fname,th,pre_def)
         in save_thm(fname ^ "_v_thm", th) end
-      val v_thm = map inst_envs results |> LIST_CONJ
+      val v_thm = do_timing "map_inst_envs" (map inst_envs) results |> LIST_CONJ
       val v_thm = v_thm |> DISCH_ALL
                   |> PURE_REWRITE_RULE [GSYM AND_IMP_INTRO]
                   |> UNDISCH_ALL
@@ -3966,7 +3942,8 @@ fun translate_options options def =
         val v = lemma |> concl |> rand |> rator |> rand
         val exp = lemma |> concl |> rand |> rand
         val v_name = find_const_name (fname ^ "_v")
-        val _ = ml_prog_update (add_Dlet_Fun unknown_loc n v exp v_name)
+        val _ = do_timing "ml_prog_update" ml_prog_update
+          (add_Dlet_Fun unknown_loc n v exp v_name)
         val v_def = hd (get_curr_v_defs ())
         val v_thm = lemma |> CONV_RULE (RAND_CONV (REWR_CONV (GSYM v_def)))
         val pre_def = (case pre of NONE => TRUTH | SOME pre_def => pre_def)
@@ -4005,7 +3982,8 @@ fun translate_options options def =
           |> MATCH_MP evaluate_empty_state_IMP
         val var_str = ml_fname
         val pre_def = (case pre of NONE => TRUTH | SOME pre_def => pre_def)
-        val _ = ml_prog_update (add_Dlet eval_thm var_str [])
+        val _ = do_timing "ml_prog_update" ml_prog_update
+          (add_Dlet eval_thm var_str [])
         val _ = add_v_thms (fname,var_str,v_thm,pre_def)
         val v_thm = v_thm |> DISCH_ALL
                     |> PURE_REWRITE_RULE [GSYM AND_IMP_INTRO]
