@@ -2082,4 +2082,9 @@ val translator_terms = save_thm("translator_terms",
               (\y v. if x = SOME y then p y v else ARB) x =
            (OPTION_TYPE (p:('a -> v -> bool)) x):v->bool``)]);
 
+(* setup trivia that creates a theorem (thus must be done in a theory,
+   rather than in *Lib.sml *)
+
+val _ = add_lookup_eq_thm init_env_writes_def
+
 val _ = export_theory();

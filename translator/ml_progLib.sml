@@ -121,20 +121,57 @@ fun cond_abbrev dest conv eval name th = let
        val th = CONV_RULE (conv (REWR_CONV (GSYM def))) th
        in (th,[def]) end end
 
+exception EnvConstNotFound of string
+exception CannotLookupEnv of term
+
+val head_const = total (fst o dest_const) o fst o strip_comb
+val restr_eval_conv = computeLib.RESTR_EVAL_CONV [``Bin``]
+
+fun eval_map_conv i j tm = if j = 0 then raise UNCHANGED
+  else case head_const tm of
+    SOME "Bin" => if is_const tm then raise UNCHANGED
+        else COMB2_CONV (eval_map_conv i j, eval_map_conv i (j - 1)) tm
+  | SOME _ => let
+    fun next tm = if head_const tm = SOME "Bin" then eval_map_conv i i tm
+      else raise UNCHANGED
+  in (restr_eval_conv THENC next) tm end
+  | _ => raise UNCHANGED
+
 local
-  val fast_rewrites = ref ([]:thm list);
-  fun has_fast_result lemma = let
-    val rhs = lemma |> concl |> dest_eq |> snd
-    val c = repeat (fst o dest_comb) rhs
-    val cname = dest_const c |> fst
-    in mem cname ["F","NONE","mod_defined","nsLookup"] end
-    handle HOL_ERR _ => false
+  val lookup_eq_thms = ref ([]:(string * thm) list);
+  fun add_thm nm thm
+    = (lookup_eq_thms := (nm, thm) :: (! lookup_eq_thms))
 in
-  fun get_fast_rewrites () = !fast_rewrites
-  fun add_fast_rewrite lemma =
-    if has_fast_result lemma then
-      fast_rewrites := lemma::(!fast_rewrites)
-    else ()
+  fun get_lookup_map_thm_for_const_nm nm = case AList.lookup (op =)
+        (! lookup_eq_thms) nm
+    of SOME thm => thm | NONE => raise (EnvConstNotFound nm)
+  fun get_lookup_map_thm term = let
+      val (hd, xs) = strip_comb term
+      val (thm, specs, sub_envs) = case (fst (dest_const hd), xs) of
+          ("write", [nm, v, env]) => (lookup_eq_map2_write,
+                [(`n`, nm), (`v`, v)], [env])
+        | ("write_cons", [nm, c, env]) => (lookup_eq_map2_write_cons,
+                [(`n`, nm), (`c`, c)], [env])
+        | ("empty_env", []) => (lookup_eq_map2_empty_env, [], [])
+        | ("merge_env", [env1, env2]) => (lookup_eq_map2_merge_env,
+                [], [env1, env2])
+        | ("write_mod", [mn, mod_env, env]) => (lookup_eq_map2_write_mod,
+                [(`mn`, mn), (`mod_env`, mod_env)], [env])
+        | (env_nm, []) => (get_lookup_map_thm_for_const_nm env_nm, [], [])
+        | _ => raise (CannotLookupEnv term)
+      val thm = foldl (fn ((nm, term), thm) => SPEC term (Q.GEN nm thm))
+        thm specs
+      val sub_env_thms = map get_lookup_map_thm sub_envs
+    in foldl (fn (env_thm, thm) => MATCH_MP thm env_thm) thm sub_env_thms end
+  fun add_lookup_eq_thm def = let
+      val (env_const, def_rhs) = def |> concl |> dest_eq
+      val thm = get_lookup_map_thm def_rhs
+      val thm = CONV_RULE (RAND_CONV (REWR_CONV (GSYM def))) thm
+      val thm = CONV_RULE (RATOR_CONV (RAND_CONV (eval_map_conv 3 3))) thm
+      val _ = timing_comment ("lookup_eq_thm: " ^ Parse.thm_to_string thm)
+      val nm = fst (dest_const env_const)
+      val _ = save_thm ("lookup_eq_map2_" ^ nm, thm)
+    in add_thm nm thm end
 end;
 
 fun cond_env_abbrev dest conv name th = let
@@ -144,24 +181,24 @@ fun cond_env_abbrev dest conv name th = let
      else let
        val def = define_abbrev false (find_name name) tm |> SPEC_ALL
        val th = CONV_RULE (conv (REWR_CONV (GSYM def))) th
-       val env_const = def |> concl |> dest_eq |> fst
-       (* derive theorem for computeLib *)
-       val xs = nsLookup_eq_format |> SPEC env_const |> concl
-                   |> find_terms is_eq |> map (fst o dest_eq)
-       val _ = timing_comment ("length of xs " ^ Int.toString (length xs))
-       fun derive_rewrite tm = let
-         val lemma = (REWRITE_CONV
-                      ([def,nsLookup_write_cons,nsLookup_write,
-                        nsLookup_merge_env,nsLookup_write_mod,nsLookup_empty]
-                       @ (get_fast_rewrites ())) THENC SIMP_CONV (srw_ss()) []) tm
-         val _ = add_fast_rewrite lemma
-         in lemma end
-       val compute_th = LIST_CONJ (do_timing "cond_env_abbrev derive_rewrite"
-            (map derive_rewrite) xs)
-       val _ = timing_comment ("compute_th: " ^ Parse.thm_to_string compute_th)
-       val thm_name = "nsLookup_" ^ fst (dest_const env_const)
-       val _ = save_thm(thm_name ^ "[compute]",compute_th)
+       val _ = add_lookup_eq_thm def
        in (th,[def]) end end
+
+fun nsLookup_env_conv nm = let
+    val _ = print ("nsLookup_env_conv: " ^ nm ^ "\n")
+    val thm = get_lookup_map_thm_for_const_nm nm
+    val thms = [MATCH_MP nsLookup_via_map_c thm,
+        MATCH_MP nsLookup_via_map_v thm]
+  in FIRST_CONV (map REWR_CONV thms) THENC restr_eval_conv end
+
+fun nsLookup_conv tm = let
+    val (hd, xs) = strip_comb tm
+    val constnm = total (fst o dest_const)
+    val csplit = apfst constnm o apsnd (map constnm) o strip_comb
+  in case (constnm hd, map csplit xs) of
+      (SOME "nsLookup", [(SOME _, [SOME nm]), _]) => nsLookup_env_conv nm tm
+    | _ => raise UNCHANGED
+  end
 
 (*
 val (ML_code (ss,envs,vs,th)) = (ML_code (ss,envs,v_def :: vs,th))
@@ -177,7 +214,7 @@ fun clean (ML_code (ss,envs,vs,th)) = let
   val (th,new_envs) = do_timing "cond_env_abbrev"
     (cond_env_abbrev dest conv name) th
   val th = do_timing "REWRITE_RULE" (REWRITE_RULE [ML_code_env_def]) th
-  in ML_code (new_ss @ ss, new_envs @ envs, vs,  th) end
+  in ML_code (new_ss @ ss, new_envs @ envs, vs, th) end
 
 (* --- *)
 

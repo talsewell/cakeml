@@ -65,6 +65,8 @@ sig
 
   val pick_name : string -> string
 
+  val get_lookup_map_thm : term -> thm
+
   (* for timing and debugging *)
   val trace_timing_to : string option ref
   val timing_comment : string -> unit

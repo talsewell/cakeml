@@ -820,6 +820,10 @@ val nsModsOf_simps = Q.store_thm ("nsModsOf_simps",
   \\ EVAL_TAC
   \\ fs []);
 
+val nsModsOf_ALOOKUP = Q.store_thm ("nsModsOf_ALOOKUP",
+  `nsModsOf (Bind ns ms) = {k | ~ (ALOOKUP ms k = NONE)}`,
+  fs [nsModsOf_def, ALOOKUP_NONE]);
+
 val lookup_eq_map_def = Define `
   lookup_eq_map sn_ord bn_ord map mmap ns
     = (good_cmp sn_ord /\ good_cmp bn_ord
@@ -860,9 +864,8 @@ val nsLookup_nsAppend_Long_nsModsOf = Q.store_thm
     of SOME v => SOME v | NONE => if n IN nsModsOf ns1 then NONE
       else nsLookup ns2 (Long n iden))`,
   cases_on `ns1` \\ cases_on `ns2`
-  \\ fs [nsAppend_def, nsLookup_def, nsModsOf_def, ALOOKUP_APPEND]
-  \\ rpt (PURE_CASE_TAC \\ fs [ALOOKUP_NONE]
-    \\ fs [GSYM ALOOKUP_NONE]));
+  \\ fs [nsAppend_def, nsLookup_def, nsModsOf_ALOOKUP, ALOOKUP_APPEND]
+  \\ rpt (PURE_CASE_TAC \\ fs []));
 
 val lookup_eq_map_nsAppend = Q.store_thm ("lookup_eq_map_nsAppend",
   `lookup_eq_map sn_ord bn_ord m1 mm1 ns1
@@ -895,36 +898,36 @@ val lookup_eq_map_nsLift = Q.store_thm ("lookup_eq_map_nsLift",
 );
 
 val lookup_eq_map2_def = Define `
-  lookup_eq_map2 v_m v_mm c_m c_mm (env : v sem_env) =
+  lookup_eq_map2 (v_m, v_mm, c_m, c_mm) (env : v sem_env) =
     (lookup_eq_map string_cmp string_cmp v_m v_mm env.v /\
       lookup_eq_map string_cmp string_cmp c_m c_mm env.c)`;
 
 val lookup_eq_map2_write = Q.store_thm ("lookup_eq_map2_write",
-  `lookup_eq_map2 v_m v_mm c_m c_mm env ==>
-    lookup_eq_map2 (balanced_map$insert string_cmp n v v_m) v_mm c_m c_mm
+  `lookup_eq_map2 (v_m, v_mm, c_m, c_mm) env ==>
+    lookup_eq_map2 (balanced_map$insert string_cmp n v v_m, v_mm, c_m, c_mm)
       (write n v env)`,
   fs [lookup_eq_map2_def, write_def, lookup_eq_map_nsBind]);
 
 val lookup_eq_map2_write_cons = Q.store_thm ("lookup_eq_map2_write_cons",
-  `lookup_eq_map2 v_m v_mm c_m c_mm env ==>
-    lookup_eq_map2 v_m v_mm (balanced_map$insert string_cmp n c c_m) c_mm
+  `lookup_eq_map2 (v_m, v_mm, c_m, c_mm) env ==>
+    lookup_eq_map2 (v_m, v_mm, balanced_map$insert string_cmp n c c_m, c_mm)
       (write_cons n c env)`,
   fs [lookup_eq_map2_def, write_cons_def, lookup_eq_map_nsBind]);
 
 val lookup_eq_map2_empty_env = Q.store_thm ("lookup_eq_map2_empty_env",
-  `lookup_eq_map2 (balanced_map$empty) (balanced_map$empty)
-    (balanced_map$empty) (balanced_map$empty) empty_env`,
+  `lookup_eq_map2 (balanced_map$empty, balanced_map$empty,
+    balanced_map$empty, balanced_map$empty) empty_env`,
   fs [lookup_eq_map2_def, empty_env_def, lookup_eq_map_nsEmpty,
     comparisonTheory.string_cmp_good,
     comparisonTheory.string_cmp_antisym]);
 
 val lookup_eq_map2_merge_env = Q.store_thm ("lookup_eq_map2_merge_env",
-  `lookup_eq_map2 v_m1 v_mm1 c_m1 c_mm1 env1 ==>
-    lookup_eq_map2 v_m2 v_mm2 c_m2 c_mm2 env2 ==>
-    lookup_eq_map2 (balanced_map$union string_cmp v_m1 v_m2)
-      (balanced_map$union string_cmp v_mm1 v_mm2)
-      (balanced_map$union string_cmp c_m1 c_m2)
-      (balanced_map$union string_cmp c_mm1 c_mm2)
+  `lookup_eq_map2 (v_m1, v_mm1, c_m1, c_mm1) env1 ==>
+    lookup_eq_map2 (v_m2, v_mm2, c_m2, c_mm2) env2 ==>
+    lookup_eq_map2 (balanced_map$union string_cmp v_m1 v_m2,
+      balanced_map$union string_cmp v_mm1 v_mm2,
+      balanced_map$union string_cmp c_m1 c_m2,
+      balanced_map$union string_cmp c_mm1 c_mm2)
       (merge_env env1 env2)`,
   fs [lookup_eq_map2_def, merge_env_def, lookup_eq_map_nsAppend]);
 
@@ -937,11 +940,11 @@ val balanced_tree_union_empty_helper = GEN_ALL (Q.prove (
   EVAL_TAC));
 
 val lookup_eq_map2_write_mod = Q.store_thm ("lookup_eq_map2_write_mod",
-  `lookup_eq_map2 v_m v_mm c_m c_mm env ==>
+  `lookup_eq_map2 (v_m, v_mm, c_m, c_mm) env ==>
     lookup_eq_map2
-      v_m (balanced_map$union string_cmp (balanced_map$singleton mn
-        (nsLookup mod_env.v)) v_mm)
-      c_m (balanced_map$union string_cmp (balanced_map$singleton mn
+      (v_m, balanced_map$union string_cmp (balanced_map$singleton mn
+        (nsLookup mod_env.v)) v_mm,
+      c_m, balanced_map$union string_cmp (balanced_map$singleton mn
         (nsLookup mod_env.c)) c_mm)
       (write_mod mn mod_env env)`,
   fs [lookup_eq_map2_def, write_mod_def]
@@ -952,5 +955,62 @@ val lookup_eq_map2_write_mod = Q.store_thm ("lookup_eq_map2_write_mod",
     \\ irule (GEN_ALL lookup_eq_map_nsAppend)
     \\ fs [lookup_eq_map_nsLift, balanced_tree_union_empty_helper])
   );
+
+val nsLookup_via_map_v = Q.store_thm ("nsLookup_via_map_v",
+  `lookup_eq_map2 (v_m, v_mm, c_m, c_mm) env ==>
+    nsLookup env.v iden = id_lookup_in_map string_cmp string_cmp v_m v_mm iden`,
+  fs [lookup_eq_map2_def, lookup_eq_map_def]);
+
+val nsLookup_via_map_c = Q.store_thm ("nsLookup_via_map_c",
+  `lookup_eq_map2 (v_m, v_mm, c_m, c_mm) env ==>
+    nsLookup env.c iden = id_lookup_in_map string_cmp string_cmp c_m c_mm iden`,
+  fs [lookup_eq_map2_def, lookup_eq_map_def]);
+
+val mod_defined_nsModsOf = Q.store_thm ("mod_defined_nsModsOf",
+  `mod_defined ns iden = (case iden of Short _ => F
+        | Long mn _ => mn IN nsModsOf ns)`,
+  fs [mod_defined_def]
+  \\ (PURE_CASE_TAC \\ fs [id_to_mods_def])
+  \\ cases_on `ns`
+  \\ fs [Once EXISTS_LIST, nsLookupMod_def, nsModsOf_ALOOKUP]
+  \\ (PURE_CASE_TAC \\ fs [ALOOKUP_NONE])
+  \\ Q.EXISTS_TAC `[]`
+  \\ fs [nsLookupMod_def]);
+
+val mod_defined_via_map_v = Q.store_thm ("mod_defined_via_map_v",
+  `lookup_eq_map2 (v_m, v_mm, c_m, c_mm) env ==>
+    mod_defined env.v iden = (case iden of Short _ => F
+        | Long mn _ => balanced_map$member string_cmp mn v_mm)`,
+  fs [lookup_eq_map2_def, mod_defined_nsModsOf, lookup_eq_map_def]);
+
+val mod_defined_via_map_c = Q.store_thm ("mod_defined_via_map_c",
+  `lookup_eq_map2 (v_m, v_mm, c_m, c_mm) env ==>
+    mod_defined env.c iden = (case iden of Short _ => F
+        | Long mn _ => balanced_map$member string_cmp mn c_mm)`,
+  fs [lookup_eq_map2_def, mod_defined_nsModsOf, lookup_eq_map_def]);
+
+val foldr_write_env = Q.store_thm ("foldr_write_env",
+  `FOLDR (\(n, v). write n v) <| v := Bind vs vms; c := Bind cs cms |> xs
+    = <| v := Bind (xs ++ vs) vms; c := Bind cs cms |>`,
+  (Q.ID_SPEC_TAC `vs`)
+  \\ (induct_on `xs` \\ fs [])
+  \\ fs [FORALL_PROD, write_def, nsBind_def]);
+
+val foldr_write_cons_env  = Q.store_thm ("foldr_write_cons_env",
+  `FOLDR (\(n, c). write_cons n c) <| v := Bind vs vms; c := Bind cs cms |> xs
+    = <| v := Bind vs vms; c := Bind (xs ++ cs) cms |>`,
+  (Q.ID_SPEC_TAC `vs`)
+  \\ (induct_on `xs` \\ fs [])
+  \\ fs [FORALL_PROD, write_cons_def, nsBind_def]);
+
+val concrete_env_to_writes_thm = Q.store_thm ("concrete_env_to_map_thm",
+  `env = <| v := Bind xs []; c := Bind ys [] |> ==>
+    env = FOLDR (\(n, v). write n v)
+      (FOLDR (\(n, c). write_cons n c) empty_env ys) xs`,
+  fs [empty_env_def, nsEmpty_def, foldr_write_cons_env, foldr_write_env]);
+
+val init_env_writes_def = save_thm ("init_env_writes_def",
+    MATCH_MP concrete_env_to_writes_thm init_env_def
+        |> CONV_RULE (RAND_CONV EVAL));
 
 val _ = export_theory();

@@ -2716,16 +2716,8 @@ val th = D res
 
 fun clean_assumptions th = let
   val _ = timing_comment ("doing clean_assumptions on: " ^ Parse.thm_to_string th);
-  val lhs1 = get_term "nsLookup_pat"
-  val pattern1 = mk_eq(lhs1,mk_var("_",type_of lhs1))
-  val lhs2 = lookup_cons_def (*lookup_cons_thm*) |> SPEC_ALL |> concl |> dest_eq |> fst
-  val pattern2 = mk_eq(lhs2,mk_var("_",type_of lhs2))
-  val lookup_assums = find_terms (fn tm => can (match_term pattern1) tm
-                                    orelse can (match_term pattern2) tm) (concl th)
-  val lemmas = map EVAL lookup_assums
-
-               |> filter (fn th => th |> concl |> rand |> is_const)
-  val th = REWRITE_RULE lemmas th
+  (* resolve some nsLookup questions *)
+(*  val th = CONV_RULE nsLookup_conv th *)
   (* lift EqualityType assumptions out *)
   val pattern = get_term "eq type"
   val eq_assums = find_terms (can (match_term pattern)) (concl th)
