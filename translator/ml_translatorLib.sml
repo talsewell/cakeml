@@ -2716,8 +2716,6 @@ val th = D res
 
 fun clean_assumptions th = let
   val _ = timing_comment ("doing clean_assumptions on: " ^ Parse.thm_to_string th);
-  (* resolve some nsLookup questions *)
-(*  val th = CONV_RULE nsLookup_conv th *)
   (* lift EqualityType assumptions out *)
   val pattern = get_term "eq type"
   val eq_assums = find_terms (can (match_term pattern)) (concl th)

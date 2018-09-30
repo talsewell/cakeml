@@ -165,13 +165,16 @@ in
     in foldl (fn (env_thm, thm) => MATCH_MP thm env_thm) thm sub_env_thms end
   fun add_lookup_eq_thm def = let
       val (env_const, def_rhs) = def |> concl |> dest_eq
-      val thm = get_lookup_map_thm def_rhs
-      val thm = CONV_RULE (RAND_CONV (REWR_CONV (GSYM def))) thm
-      val thm = CONV_RULE (RATOR_CONV (RAND_CONV (eval_map_conv 3 3))) thm
-      val _ = timing_comment ("lookup_eq_thm: " ^ Parse.thm_to_string thm)
+      val th = get_lookup_map_thm def_rhs
+      val th = CONV_RULE (RAND_CONV (REWR_CONV (GSYM def))) th
+      val th = CONV_RULE (RATOR_CONV (RAND_CONV (eval_map_conv 3 3))) th
+      val _ = timing_comment ("lookup_eq_thm: " ^ Parse.thm_to_string th)
       val nm = fst (dest_const env_const)
-      val _ = save_thm ("lookup_eq_map2_" ^ nm, thm)
-    in add_thm nm thm end
+      val _ = save_thm ("lookup_eq_map2_" ^ nm, th)
+      val compute_th = MATCH_MP lookup_eq_map2_compute_imps th
+      val thm_name = "nsLookup_via_map_" ^ fst (dest_const env_const)
+      val _ = save_thm (thm_name ^ "[compute]", compute_th)
+    in add_thm nm th end
 end;
 
 fun cond_env_abbrev dest conv name th = let
@@ -181,24 +184,8 @@ fun cond_env_abbrev dest conv name th = let
      else let
        val def = define_abbrev false (find_name name) tm |> SPEC_ALL
        val th = CONV_RULE (conv (REWR_CONV (GSYM def))) th
-       val _ = add_lookup_eq_thm def
+       val eq_thm = add_lookup_eq_thm def
        in (th,[def]) end end
-
-fun nsLookup_env_conv nm = let
-    val _ = print ("nsLookup_env_conv: " ^ nm ^ "\n")
-    val thm = get_lookup_map_thm_for_const_nm nm
-    val thms = [MATCH_MP nsLookup_via_map_c thm,
-        MATCH_MP nsLookup_via_map_v thm]
-  in FIRST_CONV (map REWR_CONV thms) THENC restr_eval_conv end
-
-fun nsLookup_conv tm = let
-    val (hd, xs) = strip_comb tm
-    val constnm = total (fst o dest_const)
-    val csplit = apfst constnm o apsnd (map constnm) o strip_comb
-  in case (constnm hd, map csplit xs) of
-      (SOME "nsLookup", [(SOME _, [SOME nm]), _]) => nsLookup_env_conv nm tm
-    | _ => raise UNCHANGED
-  end
 
 (*
 val (ML_code (ss,envs,vs,th)) = (ML_code (ss,envs,v_def :: vs,th))

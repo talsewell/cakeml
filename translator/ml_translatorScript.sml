@@ -2085,6 +2085,4 @@ val translator_terms = save_thm("translator_terms",
 (* setup trivia that creates a theorem (thus must be done in a theory,
    rather than in *Lib.sml *)
 
-val _ = add_lookup_eq_thm init_env_writes_def
-
 val _ = export_theory();
