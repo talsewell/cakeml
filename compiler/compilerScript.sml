@@ -333,9 +333,12 @@ val parse_stack_conf_def = Define`
 (* tap *)
 val parse_tap_conf_def = Define`
   parse_tap_conf ls stack =
+  let tap_all = find_str (strlit"--explore") ls in
+  let tap_all_star = (case tap_all of NONE => []
+    | SOME _ => [strlit"*"]) in
   let taps = find_strs (strlit"--tap=") ls in
   let fname = find_str (strlit"--tapfname=") ls in
-  INL (mk_tap_config fname taps)`
+  INL (mk_tap_config fname (tap_all_star ++ taps))`
 
 val extend_conf_def = Define`
   extend_conf ls conf =
