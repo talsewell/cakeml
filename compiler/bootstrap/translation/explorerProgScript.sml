@@ -84,6 +84,11 @@ val res = translate presLangTheory.tap_clos_def;
 (* we can't translate the tap_word bits yet, because that's 32/64 specific.
    that's done in the to_word* scripts. *)
 
+(* more parts of the external interface *)
+val res = translate presLangTheory.default_tap_config_def;
+val res = translate presLangTheory.mk_tap_config_def;
+val res = translate presLangTheory.tap_data_strings_def;
+
 val () = Feedback.set_trace "TheoryPP.include_docs" 0;
 val _ = (ml_translatorLib.clean_on_exit := true);
 
