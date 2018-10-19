@@ -193,6 +193,12 @@ val alookup_append_option_choice_f = Q.store_thm (
   rpt (strip_tac ORELSE CASE_TAC
     ORELSE fs [option_choice_f_def, alistTheory.ALOOKUP_APPEND, FUN_EQ_THM]));
 
+val alookup_empty_option_choice_f = Q.store_thm (
+  "alookup_empty_option_choice_f",
+  `(option_choice_f (ALOOKUP []) f = f)
+    /\ (option_choice_f f (ALOOKUP []) = f)`,
+  fs [FUN_EQ_THM, option_choice_f_def]);
+
 val option_choice_f_assoc = Q.store_thm ("option_choice_f_assoc",
   `option_choice_f (option_choice_f f g) h
     = option_choice_f f (option_choice_f g h)`,
