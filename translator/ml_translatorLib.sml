@@ -2758,8 +2758,7 @@ fun clean_assumptions th = let
   val pattern2 = mk_eq(lhs2,mk_var("_",type_of lhs2))
   val lookup_assums = find_terms (fn tm => can (match_term pattern1) tm
                                     orelse can (match_term pattern2) tm) (concl th)
-  val lemmas = map EVAL lookup_assums
-
+  val lemmas = map (nsLookup_conv THENC EVAL) lookup_assums
                |> filter (fn th => th |> concl |> rand |> is_const)
   val th = REWRITE_RULE lemmas th
   (* lift EqualityType assumptions out *)
