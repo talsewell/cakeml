@@ -4,7 +4,7 @@ applications of those functions. *)
 
 structure alist_treeLib = struct
 
-open alist_treeTheory
+open preamble alist_treeTheory
 
 (* the repr set object *)
 datatype 'a alist_reprs = AList_Reprs of {R_thm: thm, conv: conv,
@@ -219,7 +219,7 @@ fun add_alist_repr rs thm = let
     val AList_Reprs inn_rs = rs
     val (f, rhs) = dest_eq (concl thm)
     val repr_thm = case Redblackmap.peek (! (#dict inn_rs), rhs) of
-        SOME rhs_thm => if is_eq (concl thm)
+        SOME rhs_thm => if is_eq (concl rhs_thm)
           then TRANS thm rhs_thm
           else thm
       | NONE => (mk_repr rs rhs
