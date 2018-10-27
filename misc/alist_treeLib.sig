@@ -14,17 +14,25 @@ val repr_tm : term;
 (* The repr set type *)
 type 'a alist_reprs
 
-(* Representations of partial functions using sorted trees.
-   The destructor maps terms of the domain type to some type
-   that can be sorted in ML. *)
-fun mk_alist_reprs : theory -> conv -> (term -> 'a)
+(*
+   Representations of partial functions using sorted trees.
+   Requires a relation R and a theorem that shows
+   it is irreflexive and transitive. The destructor maps terms
+   of the domain type to some type that can be sorted in ML.
+   The conversion must prove R x y for any x, y where x is
+   sorted before y by the destructor and comparison.
+*)
+val mk_alist_reprs : thm -> conv -> (term -> 'a)
     -> (('a * 'a) -> order) -> 'a alist_reprs
 
-(* The representation set contains representations of various
-   partial functions, initially none. *)
-fun peek_functions_in_rs : 'a alist_reprs -> term list
+(*
+   The representation set contains representations of various
+   partial functions, initially none.
+*)
+val peek_functions_in_rs : 'a alist_reprs -> term list
 
-(* Add a representation of a partial function f.
+(*
+   Adds a function's representation.
 
    Requires a theorem f = rhs with a valid rhs.
    A valid rhs is:
@@ -32,11 +40,13 @@ fun peek_functions_in_rs : 'a alist_reprs -> term list
      - a function g in the repr set.
      - option_choice_f of two valid rhs values
 *)
-fun add_alist_repr : 'a alist_reprs -> thm -> ()
+val add_alist_repr : 'a alist_reprs -> thm -> unit
 
-(* Convert f x to a concrete value (SOME y/NONE)
-   for functions f in the repr set. *)
-fun reprs_conv : 'a alist_reprs -> conv
+(*
+   Converts f x to a concrete value (SOME y/NONE)
+   for functions f in the repr set.
+*)
+val reprs_conv : 'a alist_reprs -> conv
 
 end
 

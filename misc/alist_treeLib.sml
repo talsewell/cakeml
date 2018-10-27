@@ -31,7 +31,7 @@ fun mk_alist_reprs R_thm conv dest cmp
         dest = dest, dict = ref (Redblackmap.mkDict Term.compare)}
 
 fun peek_functions_in_rs (AList_Reprs inn_rs)
-    = Redblackmap.listItems (#dict inn_rs) |> map fst
+    = Redblackmap.listItems (! (#dict inn_rs)) |> map fst
 
 (* constructing is_insert thms *)
 
