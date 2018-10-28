@@ -215,6 +215,54 @@ val merge_env_write_tdefs = prove(
       write_tdefs n tds (merge_env env1 env2)``,
   Induct \\ fs [write_tdefs_def,FORALL_PROD,merge_env_write_conses]);
 
+(* it's not clear if these are still needed, but ml_progComputeLib and
+   cfTacticsLib want them to be present. *)
+
+val nsLookup_nsAppend_Short = Q.store_thm("nsLookup_nsAppend_Short[compute]",`
+  (nsLookup (nsAppend e1 e2) (Short id) =
+    case nsLookup e1 (Short id) of
+      NONE =>
+        nsLookup e2 (Short id)
+    | SOME v => SOME v)`,
+  every_case_tac>>
+  Cases_on`nsLookup e2(Short id)`>>
+  fs[namespacePropsTheory.nsLookup_nsAppend_some,
+     namespacePropsTheory.nsLookup_nsAppend_none,id_to_mods_def]);
+
+val write_simp = Q.store_thm("write_simp[compute]",
+  `(write n v env).c = env.c /\
+    nsLookup (write n v env).v (Short q) =
+      if n = q then SOME v else nsLookup env.v (Short q)`,
+  IF_CASES_TAC>>fs[write_def,namespacePropsTheory.nsLookup_nsBind]);
+
+val write_cons_simp = Q.store_thm("write_cons_simp[compute]",
+  `(write_cons n v env).v = env.v /\
+    nsLookup (write_cons n v env).c (Short q) =
+      if n = q then SOME v else nsLookup env.c (Short q)`,
+  IF_CASES_TAC>>fs[write_cons_def,namespacePropsTheory.nsLookup_nsBind]);
+
+val write_mod_simp = Q.store_thm("write_mod_simp[compute]",
+  `(nsLookup (write_mod mn env env2).v (Short q) =
+    nsLookup env2.v (Short q)) ∧
+   (nsLookup (write_mod mn env env2).c (Short c) =
+    nsLookup env2.c (Short c)) ∧
+   (nsLookup (write_mod mn env env2).v (Long mn' r) =
+    if mn = mn' then nsLookup env.v r
+    else nsLookup env2.v (Long mn' r)) ∧
+   (nsLookup (write_mod mn env env2).c (Long mn' s) =
+    if mn = mn' then nsLookup env.c s
+    else nsLookup env2.c (Long mn' s))`,
+  rw[write_mod_def]);
+
+val empty_simp = Q.store_thm("empty_simp[compute]",
+  `nsLookup empty_env.v q = NONE /\
+   nsLookup empty_env.c q = NONE`,
+  fs [empty_env_def] );
+(* the components of nsLookup are 'nicer' partial functions *)
+
+
+
+
 (* --- declarations --- *)
 
 val Decls_def = Define `
