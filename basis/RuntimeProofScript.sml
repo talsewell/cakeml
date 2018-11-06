@@ -32,12 +32,12 @@ val Runtime_exit_spec = Q.store_thm("Runtime_exit_spec",
   \\ xlet `POSTv wv. &WORD ((i2w i):word8) wv * RUNTIME`
   THEN1
    (simp[cf_wordFromInt_W8_def,cfTheory.app_wordFromInt_W8_def]
-    \\ irule local_elim \\ reduce_tac
+    \\ irule local_elim \\ reduce_tac NONE
     \\ fs[ml_translatorTheory.INT_def] \\ xsimpl)
   \\ xlet `POSTv loc. RUNTIME * W8ARRAY loc [i2w i]`
   THEN1
    (simp[cf_aw8alloc_def]
-    \\ irule local_elim \\ reduce_tac
+    \\ irule local_elim \\ reduce_tac NONE
     \\ fs[WORD_def] \\ simp[app_aw8alloc_def]
     \\ xsimpl \\ EVAL_TAC)
   \\ simp[cf_ffi_def,local_def]

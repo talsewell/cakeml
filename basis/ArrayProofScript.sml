@@ -11,7 +11,7 @@ fun prove_array_spec op_name =
   xcf op_name array_st \\ TRY xpull \\
   fs [cf_aw8alloc_def, cf_aw8sub_def, cf_aw8length_def, cf_aw8update_def,
       cf_aalloc_empty_def, cf_aalloc_def, cf_asub_def, cf_alength_def, cf_aupdate_def] \\
-  irule local_elim \\ reduce_tac \\
+  irule local_elim \\ reduce_tac (SOME "prove_array_spec") \\
   fs [app_aw8alloc_def, app_aw8sub_def, app_aw8length_def, app_aw8update_def,
       app_aalloc_def, app_asub_def, app_alength_def, app_aupdate_def] \\
   xsimpl \\ fs [INT_def, NUM_def, WORD_def, w2w_def, UNIT_TYPE_def, REPLICATE] \\

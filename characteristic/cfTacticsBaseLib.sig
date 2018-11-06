@@ -16,12 +16,14 @@ sig
 
   val sing : 'a -> 'a list
 
-  val EVAL_PAT : term -> conv
-  val eval_pat_tac : term -> tactic
-  val qeval_pat_tac : term quotation -> tactic
-  val compute_pat : computeLib.compset -> term -> conv
-  val compute_pat_tac : computeLib.compset -> term -> tactic
-  val qcompute_pat_tac : computeLib.compset -> term quotation -> tactic
+  val comment_changed_conv: string option -> conv -> conv
+  val EVAL_PAT : string option -> term -> conv
+  val eval_pat_tac : string option -> term -> tactic
+  val qeval_pat_tac : string option -> term quotation -> tactic
+  val compute_pat : string option -> computeLib.compset -> term -> conv
+  val compute_pat_tac : string option -> computeLib.compset -> term -> tactic
+  val qcompute_pat_tac : string option -> computeLib.compset
+    -> term quotation -> tactic
 
   val hnf_conv : conv
   val hnf : tactic

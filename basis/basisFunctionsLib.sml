@@ -50,7 +50,8 @@ fun append_decs tm = let
 fun prove_ref_spec op_name =
   xcf op_name (get_ml_prog_state ()) \\
   fs [cf_ref_def, cf_deref_def, cf_assign_def] \\ irule local_elim \\
-  reduce_tac \\ fs [app_ref_def, app_deref_def, app_assign_def] \\
+  reduce_tac (SOME "prove_ref_spec") \\
+  fs [app_ref_def, app_deref_def, app_assign_def] \\
   xsimpl \\ fs [UNIT_TYPE_def]
 
 end

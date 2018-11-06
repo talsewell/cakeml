@@ -91,23 +91,50 @@ fun sing x = [x]
 
 fun try_finally tac = TRY (tac \\ NO_TAC)
 
-fun EVAL_PAT pat tm =
+fun comment_changed msg tm1 tm2 = let
+    fun doit [] = raise UNCHANGED
+      | doit ((x, y) :: tms) = if is_abs x then let
+        val (v, x_rhs) = dest_abs x
+        val y_rhs = beta_conv (mk_comb (y, v))
+      in doit ((x_rhs, y_rhs) :: tms) end else let
+        val (f, xs) = strip_comb x
+        val (g, ys) = strip_comb y
+        val tts = Parse.term_to_string
+      in if not (null xs) andalso length xs = length ys andalso same_const f g
+        then doit ((f, g) :: zip xs ys @ tms)
+        else if aconv x y then doit tms
+        else print (msg ^ ": changed under: " ^ tts f ^ " -> " ^ tts g ^ "\n")
+      end
+  in doit [(tm1, tm2)] end
+
+fun comment_changed_conv NONE conv tm = (CHANGED_CONV conv tm
+        handle HOL_ERR _ => raise UNCHANGED)
+  | comment_changed_conv (SOME msg) conv tm = let
+    val thm = conv tm
+  in comment_changed msg tm (rhs (concl thm)); thm end
+
+fun EVAL_PAT msg pat tm =
   if can (match_term pat) tm then
-    EVAL tm
+    comment_changed_conv msg EVAL tm
   else
     NO_CONV tm
 
-fun eval_pat_tac pat = CONV_TAC (DEPTH_CONV (EVAL_PAT pat))
-val qeval_pat_tac = Q_TAC eval_pat_tac
+fun eval_pat_tac msg pat = CONV_TAC (DEPTH_CONV (EVAL_PAT msg pat))
+fun qeval_pat_tac msg = Q_TAC (eval_pat_tac msg)
 
-fun compute_pat cs pat tm =
+fun post_msg _ NONE = NONE
+  | post_msg post (SOME msg) = SOME (msg ^ ": " ^ post)
+
+fun compute_pat msg cs pat tm =
   if can (match_term pat) tm then
-    (computeLib.CBV_CONV cs THENC EVAL) tm   (* TODO: remove EVAL *)
+    (comment_changed_conv (post_msg "pat-CBV" msg) (computeLib.CBV_CONV cs)
+        THENC comment_changed_conv (post_msg "pat-EVAL" msg) EVAL) tm
+    (* TODO: remove EVAL *)
   else
     NO_CONV tm
 
-fun compute_pat_tac cs pat = CONV_TAC (DEPTH_CONV (compute_pat cs pat))
-fun qcompute_pat_tac cs = Q_TAC (compute_pat_tac cs)
+fun compute_pat_tac msg cs pat = CONV_TAC (DEPTH_CONV (compute_pat msg cs pat))
+fun qcompute_pat_tac msg cs = Q_TAC (compute_pat_tac msg cs)
 
 fun hnf_conv tm =
     let val (f, xs) = strip_comb tm in
@@ -178,9 +205,10 @@ fun fetch_v name st =
       val ident_expr = parse nEbase_t ptree_t [QUOTE name]
       val ident_expr = find_term astSyntax.is_Var ident_expr
       val ident = astSyntax.dest_Var ident_expr
-      val evalth = (REWRITE_CONV [ml_progTheory.nsLookup_merge_env] THENC EVAL)
-                      ``nsLookup (^env).v ^ident``
-  in (optionLib.dest_some o rhs o concl) evalth end
+      val evalth = ml_progLib.nsLookup_conv ``nsLookup (^env).v ^ident``
+  in (optionLib.dest_some o rhs o concl) evalth
+    handle HOL_ERR _ => (print "fetch_v: not SOME";
+        print_thm evalth; print "\n\n"; failwith "fetch_v: not SOME") end
 
 fun fetch_def name st =
   let val v = fetch_v name st

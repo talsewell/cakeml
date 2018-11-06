@@ -13,7 +13,7 @@ fun prove_array_spec op_name =
   fs [cf_aw8alloc_def, cf_aw8sub_def, cf_aw8length_def, cf_aw8update_def,
       cf_copyaw8aw8_def, cf_aalloc_def, cf_asub_def, cf_alength_def,
       cf_aupdate_def, cf_copystraw8_def, cf_copyaw8str_def] \\
-  irule local_elim \\ reduce_tac \\
+  irule local_elim \\ reduce_tac (SOME "prove_array_spec") \\
   fs [app_aw8alloc_def, app_aw8sub_def, app_aw8length_def, app_aw8update_def,
       app_aalloc_def, app_asub_def, app_alength_def, app_aupdate_def,
       app_copyaw8aw8_def, app_copystraw8_def, app_copyaw8str_def] \\

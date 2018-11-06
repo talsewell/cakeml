@@ -374,7 +374,7 @@ val (exp2v_tm, mk_exp2v, dest_exp2v, is_exp2v) = HolKernel.syntax_fns2 "cfNormal
 (* Manipulation of expressions *)
 
 fun get_value env e =
-  cfTacticsLib.reduce_conv (mk_exp2v (env, e))
+  cfTacticsLib.reduce_conv (SOME "cfLetAuto-get_value") (mk_exp2v (env, e))
   |> concl |> rhs |> optionSyntax.dest_some;
 
 (* Rename a variable by adding numbers rather than adding primes - useful for
@@ -1728,8 +1728,9 @@ fun xlet_expr_con let_expr_args asl w env pre post =
       val con_args_tms = List.map (get_value env) con_args_exprs
       val con_args_list_tm = listSyntax.mk_list (con_args_tms,
                                                  semanticPrimitivesSyntax.v_ty)
+      val nm = SOME "xlet_expr_con"
       val con_tm = mk_build_conv (mk_sem_env_c env,con_name,con_args_list_tm)
-                                 |> cfTacticsLib.reduce_conv |> concl |> rhs
+                                 |> cfTacticsLib.reduce_conv nm |> concl |> rhs
                                  |> optionSyntax.dest_some
 
       (* Build the post-condition *)
