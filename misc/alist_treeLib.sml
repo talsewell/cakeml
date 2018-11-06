@@ -103,7 +103,8 @@ fun build_insert (dest : term -> 'a) cmp R k x =
       in if not (cmp (dest_k, dest (hd_key r)) = LESS)
         then do_inst_mp (vsub "l" l) (SPEC n is_insert_r) (build r)
         else if cmp (dest_k, dest (last_key l)) = GREATER
-        then pp (ISPECL [R, n, l, r, k, x] is_insert_centre)
+        then ISPECL [R, n, k, x] is_insert_centre
+            |> INST (vsub "l" l @ vsub "r" r) |> pp
         else do_inst_mp (vsub "r" r) (SPEC n is_insert_l) (build l)
       end
   in build end
@@ -281,7 +282,7 @@ fun build_lookup (dest : term -> 'a) cmp R k =
         raise (err "build_lookup" "check"))
     val pp = chk o assume_prems
     fun build t = if listSyntax.is_nil t
-      then pp (ISPECL [R, k] is_lookup_empty)
+      then pp (ISPECL [R, k, t] is_lookup_empty)
       else if listSyntax.is_cons t then let
         val (xs, _) = listSyntax.dest_list t
         val _ = length xs = 1 orelse raise (err "build_insert" "malformed")
