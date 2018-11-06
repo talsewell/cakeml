@@ -4105,11 +4105,9 @@ fun prove_Eval_assumptions th =
     (* val tm = el 1 eval_assums *)
     fun prove_Eval_assum tm =
       let
+        val _ = (print "doing prove_Eval_assum on:\n"; print_term tm)
         val th1 =
-          (ONCE_DEPTH_CONV(
-            REWR_CONV Eval_Var THENC
-            PURE_REWRITE_CONV[(*lookup_var_eq_lookup_var_id*)] THENC
-            QUANT_CONV(LAND_CONV EVAL) THENC REWR_CONV UNWIND_THM1)) tm
+          (ONCE_DEPTH_CONV(REWR_CONV Eval_Var_nsLookup THENC nsLookup_conv)) tm
         val const =
           th1 |> concl |> rand |> strip_forall |> #2 |> repeat (#2 o dest_imp) |> rator |> rand
         val cert = get_cert (get_bare_v_thm const)
@@ -4123,11 +4121,21 @@ fun prove_Eval_assumptions th =
 (* TODO: consolidate with concrete-mode translate? *)
 fun add_dec_for_v_thm ((fname,ml_fname,tm,cert,pre,mn),state) =
   let
+    val _ = print "doing add_dec_for_v_thm: \n"
+    val _ = print_term tm
+    val _ = print ".!!..\n"
+    val _ = print_thm cert
+    val _ = print "\n...\n"
     val vname = assert is_Var (cert |> concl |> rator |> rand) |> rand |> rand
+    val _ = print_term vname
+    val _ = print "\n...\n"
     val LOOKUP_VAR_pat = LOOKUP_VAR_def |> SPEC vname |> SPEC_ALL |> concl |> lhs
+    val _ = print_term LOOKUP_VAR_pat
     val cert = cert |> DISCH_ALL |> PURE_REWRITE_RULE[GSYM AND_IMP_INTRO] |> UNDISCH_ALL
     val lookup_var_hyp = first (can (match_term LOOKUP_VAR_pat)) (hyp cert)
     val v = rand lookup_var_hyp
+    val _ = print "v: "
+    val _ = print_term v
   in
     if is_Recclosure v
     then
@@ -4140,6 +4148,7 @@ fun add_dec_for_v_thm ((fname,ml_fname,tm,cert,pre,mn),state) =
           |> ISPECL [el 1 recc_names, get_env state]
           |> concl |> lhs |> EVAL
           |> concl |> rhs
+        val _ = print "got previous_v\n"
         val already_defined = optionSyntax.is_some previous_v
         val cl_env =
           if already_defined
@@ -4157,9 +4166,13 @@ fun add_dec_for_v_thm ((fname,ml_fname,tm,cert,pre,mn),state) =
                   recc_names
           in add_Dletrec unknown_loc recc v_names state end
         val lemmas = LOOKUP_VAR_def :: map GSYM (get_v_defs state')
+        fun tap_th nm th = (print ("thm at " ^ nm ^ " now:\n");
+            print_thm (DISCH_ALL th); print "\n"; th)
         val th = cert
                   |> INST[cl_env_tm |-> cl_env, env_tm |-> get_env state']
+                  |> tap_th "done INST"
                   |> prove_Eval_assumptions
+                  |> tap_th "done prove_Eval"
                   |> D |> REWRITE_RULE lemmas
                   |> SIMP_RULE std_ss [Eval_Var]
                   |> SIMP_RULE std_ss [lookup_var_def]
@@ -4174,17 +4187,26 @@ fun add_dec_for_v_thm ((fname,ml_fname,tm,cert,pre,mn),state) =
         val th = cert |> DISCH lookup_var_hyp
                  |> GEN env_tm
                  |> MATCH_MP Eval_Var_LOOKUP_VAR_elim
+        val _ = print "got th\n"
         val v_name = find_const_name (fname ^ "_v")
         val (_,x,exp) = dest_Closure v
         val state' = add_Dlet_Fun unknown_loc (stringSyntax.fromMLstring ml_fname) x exp v_name state
+        val _ = print "got state'\n"
         val lemmas = LOOKUP_VAR_def :: map GSYM (get_v_defs state')
+        val _ = print "got lemmas\n"
+        fun tap_th nm th = (print ("thm at " ^ nm ^ " now:\n");
+            print_thm (DISCH_ALL th); print "\n"; th)
         val th = cert
                   |> INST[cl_env_tm |-> cl_env, env_tm |-> get_env state']
+                  |> tap_th "done INST"
                   |> prove_Eval_assumptions
+                  |> tap_th "done prove_Eval"
                   |> D |> REWRITE_RULE lemmas
                   |> SIMP_RULE std_ss [Eval_Var]
                   |> SIMP_RULE std_ss [lookup_var_def]
-                  |> clean_assumptions |> UNDISCH_ALL
+                  |> tap_th "done SIMP_RULE"
+                  |> clean_assumptions
+                  |> tap_th "done clean_assums" |> UNDISCH_ALL
         val _ = replace_v_thm tm th
         val _ = save_thm(fname ^ "_v_thm", th)
       in state' end
@@ -4197,20 +4219,26 @@ fun add_dec_for_v_thm ((fname,ml_fname,tm,cert,pre,mn),state) =
     val curr_env = get_env state
     val curr_refs = mk_icomb(state_refs_tm,curr_state)
     val curr_refs_eq = EVAL curr_refs
+    val _ = print "in fall-through, about to build th\n"
     val th = cert |> INST[env_tm |-> curr_env]
              |> prove_Eval_assumptions
              |> D |> clean_assumptions
              |> UNDISCH_ALL
+    val _ = print_thm th
+    val _ = print "\n^ th\n"
     val lemma =
       Eval_constant
       |> ISPEC curr_refs
       |> PURE_REWRITE_RULE[curr_refs_eq]
       |> C MATCH_MP th
       |> D |> SIMP_RULE std_ss [PULL_EXISTS_EXTRA]
+    val _ = print_thm th
+    val _ = print "\n^ lemma\n"
     val v_name = find_const_name (fname ^ "_v")
     val refs_name = find_const_name (fname  ^ "_refs")
     val v_thm_temp = new_specification("temp",[v_name,refs_name],lemma) |> UNDISCH_ALL
     val _ = delete_binding "temp"
+    val _ = print "done delete_binding\n"
     val v_thm = MATCH_MP Eval_evaluate_IMP (CONJ th v_thm_temp)
                 |> SIMP_EqualityType_ASSUMS |> UNDISCH_ALL
     val eval_thm =
