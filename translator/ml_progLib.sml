@@ -111,12 +111,11 @@ val nsLookup_rewrs = List.concat (map BODY_CONJUNCTS
         boolTheory.AND_CLAUSES, boolTheory.OR_CLAUSES,
         boolTheory.REFL_CLAUSE,
         nsLookup_pf_nsBind, nsLookup_Short_nsAppend, nsLookup_Mod1_nsAppend,
-        nsLookup_Short_Bind, nsLookup_Mod1_Bind])
+        nsLookup_Short_Bind, nsLookup_Mod1_Bind, nsLookup_merge_env_eqs])
 
 fun nsLookup_conv tm = REPEATC (BETA_CONV ORELSEC FIRST_CONV
   (map REWR_CONV nsLookup_rewrs
-    @ map (RATOR_CONV o REWR_CONV)
-        (nsLookup_Short_Bind :: BODY_CONJUNCTS nsLookup_merge_env_eqs)
+    @ map (RATOR_CONV o REWR_CONV) nsLookup_rewrs
     @ map QCHANGED_CONV [nsLookup_arg1_conv nsLookup_conv, pfun_conv])) tm
 
 val () = computeLib.add_convs
