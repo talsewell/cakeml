@@ -63,7 +63,7 @@ val _ = Datatype `
   prog = Skip
        | Move num num
        | Call ((num # num_set) option) (* return var, cut-set *)
-                          (num option) (* target of call *)
+                        (fname option) (* target of call *)
                             (num list) (* arguments *)
                  ((num # prog) option) (* handler: varname, handler code *)
        | Assign num op (num list) (num_set option)

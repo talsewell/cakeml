@@ -32,6 +32,9 @@ val item_with_nums_def = Define`
 val bool_to_display_def = Define`
   bool_to_display b = empty_item (if b then strlit "True" else strlit "False")`;
 
+val fname_to_display_def = Define`
+  fname_to_display fname = item_with_num (strlit "Function_Name") fname.fname`;
+
 val num_to_hex_digit_def = Define `
   num_to_hex_digit n =
     if n < 10 then [CHR (48 + n)] else
@@ -422,7 +425,7 @@ val clos_op_to_display_def = Define `
     | Ref => empty_item (strlit "Ref")
     | Deref => empty_item (strlit "Deref")
     | Update => empty_item (strlit "Update")
-    | Label num => item_with_num (strlit "Label") num
+    | Label fname => Item NONE (strlit "Label") [fname_to_display fname]
     | FFI s => Item NONE (strlit "FFI") [string_to_display2 s]
     | Equal => empty_item (strlit "Equal")
     | EqualInt i => empty_item (strlit "EqualIntWithMissingData")
@@ -483,21 +486,21 @@ val clos_to_display_def = tDefine "clos_to_display" `
         [clos_to_display h x; display_num_as_varn h;
             clos_to_display (h+1) y]) /\
   (clos_to_display h (Call t ticks dest xs) =
-    Item (SOME t) (strlit "Call") [num_to_display ticks; num_to_display dest;
+    Item (SOME t) (strlit "Call") [num_to_display ticks; fname_to_display dest;
        List (MAP (clos_to_display h) xs)]) /\
-  (clos_to_display h (App t opt_n x xs) =
+  (clos_to_display h (closLang$App t opt_n x xs) =
     Item (SOME t) (strlit "App'")
-        [option_to_display num_to_display opt_n;
+        [option_to_display fname_to_display opt_n;
          clos_to_display h x; List (MAP (clos_to_display h) xs)]) /\
   (clos_to_display h (Fn t n1 n2 vn x) =
     Item (SOME t) (strlit "Fn")
-        [option_to_display num_to_display n1;
+        [option_to_display fname_to_display n1;
          option_to_display (list_to_display num_to_display) n2;
          list_to_display string_to_display2 (num_to_varn_list h vn);
          clos_to_display h x]) /\
   (clos_to_display h (closLang$Letrec t n1 n2 es e) =
     Item (SOME t) (strlit "Letrec'")
-        [option_to_display num_to_display n1;
+        [option_to_display fname_to_display n1;
          option_to_display (list_to_display num_to_display) n2;
          List (clos_to_display_letrecs h (LENGTH es-1) (LENGTH es) es);
          clos_to_display h e]) /\
@@ -660,8 +663,8 @@ val word_prog_to_display_def = tDefine "word_prog_to_display" `
     [word_exp_to_display exp; num_to_display n]) /\
   (word_prog_to_display (MustTerminate prog) = Item NONE (strlit "MustTerminate")
     [word_prog_to_display prog]) /\
-  (word_prog_to_display (Call a b c d) = Item NONE (strlit "Call")
-    [word_prog_to_display_ret a; option_to_display num_to_display b;
+  (word_prog_to_display (wordLang$Call a b c d) = Item NONE (strlit "Call")
+    [word_prog_to_display_ret a; option_to_display fname_to_display b;
         list_to_display num_to_display c;
         word_prog_to_display_handler d]) /\
   (word_prog_to_display (Seq prog1 prog2) = Item NONE (strlit "Seq")
@@ -674,7 +677,7 @@ val word_prog_to_display_def = tDefine "word_prog_to_display" `
   (word_prog_to_display (Return n1 n2) = item_with_nums (strlit "Return") [n1; n2]) /\
   (word_prog_to_display Tick = empty_item (strlit "Tick")) /\
   (word_prog_to_display (LocValue n1 n2) =
-    item_with_nums (strlit "LocValue") [n1; n2]) /\
+    Item NONE (strlit "LocValue") [num_to_display n1; fname_to_display n2]) /\
   (word_prog_to_display (Install n1 n2 n3 n4 ns) =
     Item NONE (strlit "Install") (MAP num_to_display [n1; n2; n3; n4]
         ++ [num_set_to_display ns])) /\
@@ -686,13 +689,14 @@ val word_prog_to_display_def = tDefine "word_prog_to_display" `
     Item NONE (strlit "FFI") (string_to_display2 nm :: MAP num_to_display [n1; n2; n3; n4]
         ++ [num_set_to_display ns])) /\
   (word_prog_to_display_ret NONE = empty_item (strlit "NONE")) /\
-  (word_prog_to_display_ret (SOME (n1, ns, prog, n2, n3)) =
+  (word_prog_to_display_ret (SOME (n1, ns, prog, fname, n2)) =
     Item NONE (strlit "SOME") [Tuple [num_to_display n1; num_set_to_display ns;
-        word_prog_to_display prog; num_to_display n2; num_to_display n3]]) /\
+        word_prog_to_display prog; fname_to_display fname;
+        num_to_display n2]]) /\
   (word_prog_to_display_handler NONE = empty_item (strlit "NONE")) /\
-  (word_prog_to_display_handler (SOME (n1, prog, n2, n3)) =
+  (word_prog_to_display_handler (SOME (n1, prog, fname, n2)) =
     Item NONE (strlit "SOME") [Tuple [num_to_display n1;
-        word_prog_to_display prog; num_to_display n2; num_to_display n3]])
+        word_prog_to_display prog; fname_to_display fname; num_to_display n2]])
 `
   (WF_REL_TAC `measure (\x. case x of
         | INL p => wordLang$prog_size ARB p
@@ -704,7 +708,7 @@ val word_prog_to_display_def = tDefine "word_prog_to_display" `
 
 val word_progs_to_display_def = Define`
   word_progs_to_display ps = list_to_display
-    (\(n1, n2, prog). displayLang$Tuple [num_to_display n1;
+    (\(n1, n2, prog). displayLang$Tuple [fname_to_display n1;
         num_to_display n2; word_prog_to_display prog]) ps`;
 
 (* Function to construct general functions from a language to JSON. Call with

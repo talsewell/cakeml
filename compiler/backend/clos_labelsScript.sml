@@ -4,7 +4,7 @@
 open preamble closLangTheory;
 
 val _ = new_theory "clos_labels";
-val _ = set_grammar_ancestry ["closLang","misc","sptree"];
+val _ = set_grammar_ancestry ["closLang","misc","backend_common"];
 
 val remove_dests_def = tDefine "remove_dests" `
   (remove_dests (ds:num_set) [] = []) /\
@@ -28,13 +28,13 @@ val remove_dests_def = tDefine "remove_dests" `
      [Op t op (remove_dests ds xs)]) /\
   (remove_dests ds [Tick t x] = [Tick t (HD (remove_dests ds [x]))]) /\
   (remove_dests ds [Call t ticks dest xs] =
-   if IS_SOME (lookup dest ds) then
+   if IS_SOME (lookup_fn dest ds) then
     [Call t ticks dest (remove_dests ds xs)]
    else [Op t (if NULL xs then El else String "") (remove_dests ds xs)]) /\
   (remove_dests ds [App t NONE x1 xs] =
   [App t NONE (HD (remove_dests ds [x1])) (remove_dests ds xs)]) /\
   (remove_dests ds [App t (SOME dest) x1 xs] =
-  if IS_SOME (lookup dest ds) then
+  if IS_SOME (lookup_fn dest ds) then
     [App t (SOME dest) (HD (remove_dests ds [x1])) (remove_dests ds xs)]
   else
     if NULL xs then [Let t [Op t El []] (HD (remove_dests ds [x1]))]
@@ -79,14 +79,14 @@ val add_code_locs_def = tDefine "add_code_locs" `
      let ds = add_code_locs ds xs in
        ds) /\
   (add_code_locs ds [Fn _ loc_opt vs num_args x1] =
-     let loc = case loc_opt of NONE => 0 | SOME n => n in
      let ds = add_code_locs ds [x1] in
-       insert loc () ds) /\
+     case loc_opt of NONE => ds | SOME loc =>
+       insert_fn loc () ds) /\
   (add_code_locs ds [Letrec _ loc_opt vs fns x1] =
-     let loc = case loc_opt of NONE => 0 | SOME n => n in
      let ds = add_code_locs ds (MAP SND fns) in
      let ds = add_code_locs ds [x1] in
-       list_insert (GENLIST (λn. loc + 2*n) (LENGTH fns)) ds) /\
+     case loc_opt of NONE => ds | SOME loc =>
+       list_insert_fn (GENLIST (λn. FNA ((+) (2*n)) loc) (LENGTH fns)) ds) /\
   (add_code_locs ds [Handle _ x1 x2] =
      let ds = add_code_locs ds [x1] in
      let ds = add_code_locs ds [x2] in
@@ -103,7 +103,7 @@ val add_code_locs_def = tDefine "add_code_locs" `
 
 val compile_def = Define`
   compile prog =
-    let ds = list_insert (MAP FST prog) LN in
+    let ds = list_insert_fn (MAP FST prog) LN in
     let ds = add_code_locs ds (MAP (SND o SND) prog) in
       MAP (λ(n,args,exp). (n, args, HD(remove_dests ds [exp]))) prog`;
 

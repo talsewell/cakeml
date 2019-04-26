@@ -32,7 +32,7 @@ val tick_inline_def = tDefine "tick_inline" `
      [Tick (HD (tick_inline cs [x]))]) /\
   (tick_inline cs [Call ticks dest xs] =
      case dest of NONE => [Call ticks dest (tick_inline cs xs)] | SOME n =>
-     case lookup n cs of
+     case lookup_fn n cs of
      | NONE => [Call ticks dest (tick_inline cs xs)]
      | SOME (arity,code) => [Let (tick_inline cs xs) (mk_tick (SUC ticks) code)])`
   (WF_REL_TAC `measure (exp1_size o SND)`);
@@ -106,7 +106,7 @@ val tick_inline_all_def = Define `
   (tick_inline_all limit cs [] aux = (cs,REVERSE aux)) /\
   (tick_inline_all limit cs ((n,arity:num,e1)::xs) aux =
      let e2 = HD (tick_inline cs [e1]) in
-     let cs2 = if must_inline n limit e2 then insert n (arity,e2) cs else cs in
+     let cs2 = if must_inline n limit e2 then insert_fn n (arity,e2) cs else cs in
        tick_inline_all limit cs2 xs ((n,arity,e2)::aux))`;
 
 val tick_compile_prog_def = Define `

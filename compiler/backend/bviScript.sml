@@ -44,7 +44,7 @@ val _ = Datatype `
       | Let (exp list) exp
       | Raise exp
       | Tick exp
-      | Call num (num option) (exp list) (exp option)
+      | Call num (fname option) (exp list) (exp option)
       | Op op (exp list) `
 
 val _ = export_theory();

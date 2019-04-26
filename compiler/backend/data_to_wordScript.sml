@@ -139,67 +139,67 @@ val lookup_word_op_def = Define`
 val _ = export_rewrites["lookup_word_op_def"];
 
 val FromList_location_def = Define`
-  FromList_location = word_num_stubs`;
+  FromList_location = Function_Name word_num_stubs`;
 val FromList1_location_def = Define`
-  FromList1_location = FromList_location+1`;
+  FromList1_location = FNA ((+) 1) FromList_location`;
 val RefByte_location_def = Define`
-  RefByte_location = FromList1_location+1`;
+  RefByte_location = FNA ((+) 1) FromList1_location`;
 val RefArray_location_def = Define`
-  RefArray_location = RefByte_location+1`;
+  RefArray_location = FNA ((+) 1) RefByte_location`;
 val Replicate_location_def = Define `
-  Replicate_location = RefArray_location+1`;
+  Replicate_location = FNA ((+) 1) RefArray_location`;
 val AnyArith_location_def = Define `
-  AnyArith_location = Replicate_location+1`;
+  AnyArith_location = FNA ((+) 1) Replicate_location`;
 val Add_location_def = Define `
-  Add_location = AnyArith_location+1`;
+  Add_location = FNA ((+) 1) AnyArith_location`;
 val Sub_location_def = Define `
-  Sub_location = Add_location+1`;
+  Sub_location = FNA ((+) 1) Add_location`;
 val Mul_location_def = Define `
-  Mul_location = Sub_location+1`;
+  Mul_location = FNA ((+) 1) Sub_location`;
 val Div_location_def = Define `
-  Div_location = Mul_location+1`;
+  Div_location = FNA ((+) 1) Mul_location`;
 val Mod_location_def = Define `
-  Mod_location = Div_location+1`;
+  Mod_location = FNA ((+) 1) Div_location`;
 val Compare1_location_def = Define `
-  Compare1_location = Mod_location+1`;
+  Compare1_location = FNA ((+) 1) Mod_location`;
 val Compare_location_def = Define `
-  Compare_location = Compare1_location+1`;
+  Compare_location = FNA ((+) 1) Compare1_location`;
 val Equal1_location_def = Define `
-  Equal1_location = Compare_location+1`;
+  Equal1_location = FNA ((+) 1) Compare_location`;
 val Equal_location_def = Define `
-  Equal_location = Equal1_location+1`;
+  Equal_location = FNA ((+) 1) Equal1_location`;
 val LongDiv1_location_def = Define `
-  LongDiv1_location = Equal_location+1`;
+  LongDiv1_location = FNA ((+) 1) Equal_location`;
 val LongDiv_location_def = Define `
-  LongDiv_location = LongDiv1_location+1`;
+  LongDiv_location = FNA ((+) 1) LongDiv1_location`;
 val MemCopy_location_def = Define `
-  MemCopy_location = LongDiv_location+1`;
+  MemCopy_location = FNA ((+) 1) LongDiv_location`;
 val ByteCopy_location_def = Define `
-  ByteCopy_location = MemCopy_location+1`;
+  ByteCopy_location = FNA ((+) 1) MemCopy_location`;
 val ByteCopyAdd_location_def = Define `
-  ByteCopyAdd_location = ByteCopy_location+1`;
+  ByteCopyAdd_location = FNA ((+) 1) ByteCopy_location`;
 val ByteCopySub_location_def = Define `
-  ByteCopySub_location = ByteCopyAdd_location+1`;
+  ByteCopySub_location = FNA ((+) 1) ByteCopyAdd_location`;
 val ByteCopyNew_location_def = Define `
-  ByteCopyNew_location = ByteCopySub_location+1`;
+  ByteCopyNew_location = FNA ((+) 1) ByteCopySub_location`;
 val Install_location_def = Define `
-  Install_location = ByteCopyNew_location+1`;
+  Install_location = FNA ((+) 1) ByteCopyNew_location`;
 val InstallCode_location_def = Define `
-  InstallCode_location = Install_location+1`;
+  InstallCode_location = FNA ((+) 1) Install_location`;
 val InstallData_location_def = Define `
-  InstallData_location = InstallCode_location+1`;
+  InstallData_location = FNA ((+) 1) InstallCode_location`;
 val Dummy_location_def = Define `
-  Dummy_location = InstallData_location+1`;
+  Dummy_location = FNA ((+) 1) InstallData_location`;
 val Append_location_def = Define `
-  Append_location = Dummy_location+1`;
+  Append_location = FNA ((+) 1) Dummy_location`;
 val AppendMainLoop_location_def = Define `
-  AppendMainLoop_location = Append_location+1`;
+  AppendMainLoop_location = FNA ((+) 1) Append_location`;
 val AppendLenLoop_location_def = Define `
-  AppendLenLoop_location = AppendMainLoop_location+1`;
+  AppendLenLoop_location = FNA ((+) 1) AppendMainLoop_location`;
 val AppendFastLoop_location_def = Define `
-  AppendFastLoop_location = AppendLenLoop_location+1`;
+  AppendFastLoop_location = FNA ((+) 1) AppendLenLoop_location`;
 val Bignum_location_def = Define `
-  Bignum_location = AppendFastLoop_location+1`;
+  Bignum_location = FNA ((+) 1) AppendFastLoop_location`;
 
 val FromList_location_eq = save_thm("FromList_location_eq",
   ``FromList_location`` |> EVAL);
@@ -1077,7 +1077,7 @@ val def = assign_Define `
 
 val def = assign_Define `
   assign_ListAppend (c:data_to_word$config)
-            (secn:num) (l:num) (dest:num) (names:num_set option) v1 v2 =
+            (secn:fname) (l:num) (dest:num) (names:num_set option) v1 v2 =
          (dtcase encode_header c 0 2 of
           | NONE => (GiveUp,l)
           | SOME (header:'a word) =>
@@ -1112,7 +1112,7 @@ val def = assign_Define `
 
 val def = assign_Define `
   assign_ConfigGC (c:data_to_word$config)
-            (secn:num) (l:num) (dest:num) (names:num_set option) v1 v2 =
+            (secn:fname) (l:num) (dest:num) (names:num_set option) v1 v2 =
              (list_Seq [SilentFFI c 3 (adjust_set (get_names names));
                         Assign 1 (Const 0w);
                         Alloc 1 (adjust_set (get_names names)); (* runs GC *)
@@ -1122,7 +1122,7 @@ val def = assign_Define `
 
 val def = assign_Define `
   assign_ConsExtend (c:data_to_word$config)
-            (secn:num) (l:num) (dest:num) (names:num_set option) tag args =
+            (secn:fname) (l:num) (dest:num) (names:num_set option) tag args =
         (dtcase args of
          | (old::start::len::tot::rest) =>
           (dtcase encode_header c (4 * tag) 0 of
@@ -1158,7 +1158,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_Ref (c:data_to_word$config) (secn:num)
+  assign_Ref (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) args =
           (dtcase encode_header c 2 (LENGTH args) of
               | NONE => (GiveUp,l)
@@ -1177,7 +1177,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_RefByte (c:data_to_word$config) (secn:num)
+  assign_RefByte (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) immutable v1 v2 =
          (Seq
            (Assign 1 (Const (if immutable then 0w else 16w))) (* n.b. this would have been better done with Set Temp *)
@@ -1188,7 +1188,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_CopyByte (c:data_to_word$config) (secn:num)
+  assign_CopyByte (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) args =
       (dtcase args of
        | [v1;v2;v3;v4;v5] (* alloc_new is F *) =>
@@ -1207,7 +1207,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_RefArray (c:data_to_word$config) (secn:num)
+  assign_RefArray (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
          (MustTerminate
             (Call (SOME (adjust_var dest,adjust_set (get_names names),Skip,secn,l))
@@ -1216,7 +1216,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_FromList (c:data_to_word$config) (secn:num)
+  assign_FromList (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) tag v1 v2 =
        if encode_header c (4 * tag) 0 = (NONE:'a word option) then (GiveUp,l) else
          (MustTerminate (list_Seq [
@@ -1234,7 +1234,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_BoundsCheckByte (c:data_to_word$config) (secn:num)
+  assign_BoundsCheckByte (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) leq v1 v2 =
                    (list_Seq [Assign 1
                                (let addr = real_addr c (adjust_var v1) in
@@ -1251,7 +1251,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_BoundsCheckArray (c:data_to_word$config) (secn:num)
+  assign_BoundsCheckArray (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
                    (list_Seq [Assign 1
                                (let addr = real_addr c (adjust_var v1) in
@@ -1265,7 +1265,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_BoundsCheckBlock (c:data_to_word$config) (secn:num)
+  assign_BoundsCheckBlock (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
                    (list_Seq [If Test (adjust_var v1) (Imm 1w)
                                (Assign 1 (Const 0w))
@@ -1281,7 +1281,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_Equal (c:data_to_word$config) (secn:num)
+  assign_Equal (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
         (list_Seq [Assign 1 (Var (adjust_var v1));
                    Assign 3 (Var (adjust_var v2));
@@ -1298,7 +1298,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_Less (c:data_to_word$config) (secn:num)
+  assign_Less (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
         (list_Seq [Assign 1 (Var (adjust_var v1));
                    Assign 3 (Var (adjust_var v2));
@@ -1314,7 +1314,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_LessEq (c:data_to_word$config) (secn:num)
+  assign_LessEq (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
         (list_Seq [Assign 1 (Var (adjust_var v1));
                    Assign 3 (Var (adjust_var v2));
@@ -1330,7 +1330,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_LengthBlock (c:data_to_word$config) (secn:num)
+  assign_LengthBlock (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 =
                         (If Test (adjust_var v1) (Imm 1w)
                            (Assign (adjust_var dest) (Const 0w))
@@ -1343,7 +1343,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_Length (c:data_to_word$config) (secn:num)
+  assign_Length (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 =
                           (Assign (adjust_var dest)
                               (let addr = real_addr c (adjust_var v1) in
@@ -1354,7 +1354,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_LengthByte (c:data_to_word$config) (secn:num)
+  assign_LengthByte (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 =
             (Assign (adjust_var dest)
                (let addr = real_addr c (adjust_var v1) in
@@ -1366,7 +1366,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_TagLenEq (c:data_to_word$config) (secn:num)
+  assign_TagLenEq (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) tag len v1 =
                         (if len = 0 then
                            if tag < dimword (:'a) DIV 16 then
@@ -1388,7 +1388,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_TagEq (c:data_to_word$config) (secn:num)
+  assign_TagEq (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) tag v1 =
                (if tag < dimword (:'a) DIV 16 then
                  (list_Seq
@@ -1404,7 +1404,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_Add (c:data_to_word$config) (secn:num)
+  assign_Add (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
         (list_Seq [(* perform addition *)
                    Inst (Arith (AddOverflow 1 (adjust_var v1)
@@ -1420,7 +1420,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_Sub (c:data_to_word$config) (secn:num)
+  assign_Sub (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
         (list_Seq [(* perform subtraction *)
                    Inst (Arith (SubOverflow 1 (adjust_var v1)
@@ -1436,7 +1436,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_Mult (c:data_to_word$config) (secn:num)
+  assign_Mult (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
         (list_Seq [Assign 1 (ShiftVar Lsr (adjust_var v1) 1);
                    Inst (Arith (LongMul 3 1 1 (adjust_var v2)));
@@ -1452,7 +1452,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_Div (c:data_to_word$config) (secn:num)
+  assign_Div (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
         (list_Seq [
            Assign 1 (Op Or [Var (adjust_var v1); Var (adjust_var v2)]);
@@ -1481,7 +1481,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_Mod (c:data_to_word$config) (secn:num)
+  assign_Mod (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
         (list_Seq [
            Assign 1 (Op Or [Var (adjust_var v1); Var (adjust_var v2)]);
@@ -1512,7 +1512,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_WordOpW8 opw (c:data_to_word$config) (secn:num)
+  assign_WordOpW8 opw (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
            (Assign (adjust_var dest)
             (dtcase lookup_word_op opw of
@@ -1523,7 +1523,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_WordOpW64 opw (c:data_to_word$config) (secn:num)
+  assign_WordOpW64 opw (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
        (if dimindex(:'a) = 64 then
          (dtcase encode_header c 3 1 of
@@ -1561,7 +1561,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_WordShiftW8 sh n (c:data_to_word$config) (secn:num)
+  assign_WordShiftW8 sh n (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 =
         (Assign (adjust_var dest)
            (dtcase sh of
@@ -1588,7 +1588,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_WordShiftW64 sh n (c:data_to_word$config) (secn:num)
+  assign_WordShiftW64 sh n (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 =
          let len = if dimindex(:'a) < 64 then 2 else 1 in
          (dtcase encode_header c 3 len of
@@ -1609,7 +1609,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_WordFromWord b (c:data_to_word$config) (secn:num)
+  assign_WordFromWord b (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 =
           if b then
             (list_Seq [Assign 1 (real_addr c (adjust_var v1));
@@ -1635,7 +1635,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_WordFromInt (c:data_to_word$config) (secn:num)
+  assign_WordFromInt (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 =
         let len = if dimindex(:'a) < 64 then 2 else 1 in
         (dtcase encode_header c 3 len of
@@ -1694,7 +1694,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_WordToInt (c:data_to_word$config) (secn:num)
+  assign_WordToInt (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v =
         let len = if dimindex(:'a) < 64 then 2 else 1 in
         (dtcase encode_header c 3 len of
@@ -1724,7 +1724,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_FFI ffi_index (c:data_to_word$config) (secn:num)
+  assign_FFI ffi_index (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
       if ¬c.call_empty_ffi ∧ ffi_index = "" then (Assign (adjust_var dest) Unit,l) else
         let addr1 = real_addr c (adjust_var v1) in
@@ -1745,7 +1745,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_EqualInt i (c:data_to_word$config) (secn:num)
+  assign_EqualInt i (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v =
            (if -&(dimword (:'a) DIV 8) <= i /\ i < &(dimword (:'a) DIV 8)
             then (If Equal (adjust_var v) (Imm (Smallnum i))
@@ -1764,7 +1764,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_Install (c:data_to_word$config) (secn:num)
+  assign_Install (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 v3 v4 =
         (list_Seq [BignumHalt (adjust_var v3); (* length must be smallint *)
                    BignumHalt (adjust_var v4); (* length must be smallint *)
@@ -1785,7 +1785,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_FP_cmp fpc (c:data_to_word$config) (secn:num)
+  assign_FP_cmp fpc (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
        (if ~c.has_fp_ops then (GiveUp,l) else
         if dimindex(:'a) = 64 then
@@ -1813,7 +1813,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_FP_bop fpb (c:data_to_word$config) (secn:num)
+  assign_FP_bop fpb (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 v2 =
        (if ~c.has_fp_ops then (GiveUp,l) else
         if dimindex(:'a) = 64 then
@@ -1849,7 +1849,7 @@ val def = assign_Define `
       : 'a wordLang$prog # num`;
 
 val def = assign_Define `
-  assign_FP_uop fpu (c:data_to_word$config) (secn:num)
+  assign_FP_uop fpu (c:data_to_word$config) (secn:fname)
              (l:num) (dest:num) (names:num_set option) v1 =
        (if ~c.has_fp_ops then (GiveUp,l) else
         if dimindex(:'a) = 64 then
@@ -1880,7 +1880,7 @@ val def = assign_Define `
 val all_assign_defs = save_thm("all_assign_defs",LIST_CONJ (!assign_defs));
 
 val assign_def = Define `
-  assign (c:data_to_word$config) (secn:num) (l:num) (dest:num) (op:closLang$op)
+  assign (c:data_to_word$config) (secn:fname) (l:num) (dest:num) (op:closLang$op)
     (args:num list) (names:num_set option) =
     dtcase op of
     | Const i => assign_Const i l dest
@@ -1938,7 +1938,7 @@ val assign_def = Define `
     | _ => (Skip,l)`;
 
 val comp_def = Define `
-  comp c (secn:num) (l:num) (p:dataLang$prog) =
+  comp c (secn:fname) (l:num) (p:dataLang$prog) =
     dtcase p of
     | Skip => (Skip:'a wordLang$prog,l)
     | Tick => (Tick,l)

@@ -107,9 +107,8 @@ val get_size_aux_ind = theorem "get_size_aux_ind";
 val get_size_def = Define `get_size e = get_size_aux [e]`;
 
 Theorem get_size_sc_aux_correct
-  `!xs limit n. get_size_sc_aux limit xs = limit - get_size_aux xs`
-  (`!xs limit n. get_size_sc_aux limit xs = n ==> n = limit - get_size_aux xs` suffices_by metis_tac []
-  \\ ho_match_mp_tac get_size_aux_ind
+  `!xs limit. get_size_sc_aux limit xs = limit - get_size_aux xs`
+  (ho_match_mp_tac get_size_aux_ind
   \\ simp [get_size_sc_aux_def, get_size_aux_def]);
 
 Theorem get_size_sc_SOME
@@ -253,8 +252,8 @@ val contains_closures_def = tDefine "contains_closures" `
 
 val _ = Datatype `
   val_approx =
-    ClosNoInline num num        (* location in code table, arity *)
-  | Clos num num exp num        (* loc, arity, body, body size *)
+    ClosNoInline fname num      (* location in code table, arity *)
+  | Clos fname num exp num      (* loc, arity, body, body size *)
   | Tuple num (val_approx list) (* conses or tuples *)
   | Int int                     (* used to index tuples *)
   | Other                       (* unknown *)
@@ -407,7 +406,7 @@ val clos_approx_def = Define `
 val clos_gen_noinline_def = Define`
   (clos_gen_noinline n i [] = []) /\
   (clos_gen_noinline n i ((a,e)::xs) =
-    ClosNoInline (n+2*i) a::clos_gen_noinline n (i+1) xs)`;
+    ClosNoInline (FNA ((+) (2*i)) n) a::clos_gen_noinline n (i+1) xs)`;
 
 val _ = Datatype `globalOpt = gO_Int int | gO_NullTuple num | gO_None`
 
@@ -437,7 +436,7 @@ val mk_Ticks_def = tDefine "mk_Ticks" `
 
 val _ = Datatype `
   inliningDecision = inlD_Nothing
-                   | inlD_Annotate num
+                   | inlD_Annotate fname
                    | inlD_LetInline exp
 `;
 
@@ -835,6 +834,7 @@ EVAL ``
 
   val ev = EVAL ``compile T ^app``
 
+FIXME: return here, some of these tests are busted but others could be fixed
 *)
 
 val _ = export_theory();

@@ -574,13 +574,13 @@ val has_rec_def = tDefine "has_rec" `
 
 val has_rec1_def = Define `has_rec1 loc x = has_rec loc [x]`;
 
-val test1_tm = ``Let [] (Call 0 (SOME 0) [] NONE)``
+val test1_tm = ``Let [] (Call 0 (SOMEF 0) [] NONE)``
 Theorem has_rec_test1
-  `has_rec1 0 ^test1_tm <=> F` (EVAL_TAC);
+  `has_rec1 (Function_Name 0) ^test1_tm <=> F` (EVAL_TAC);
 
-val test2_tm = ``Op Add [Call 0 (SOME 0) [] NONE; Var 0]``
+val test2_tm = ``Op Add [Call 0 (SOMEF 0) [] NONE; Var 0]``
 Theorem has_rec_test2
-  `has_rec1 0 ^test2_tm <=> T` (EVAL_TAC);
+  `has_rec1 (Function_Name 0) ^test2_tm <=> T` (EVAL_TAC);
 
 val check_exp_def = Define `
   check_exp loc arity exp =
@@ -620,7 +620,7 @@ val compile_prog_def = Define `
         let (n, ys) = compile_prog next xs in
           (n, (loc, arity, exp)::ys)
     | SOME (exp_aux, exp_opt) =>
-        let (n, ys) = compile_prog (next + bvl_to_bvi_namespaces) xs in
+        let (n, ys) = compile_prog (FNA ((+) bvl_to_bvi_namespaces) next) xs in
         (n, (loc, arity, exp_aux)::(next, arity + 1, exp_opt)::ys))
   `;
 
@@ -667,21 +667,22 @@ val fac_tm = ``
     (If (Var 0)
        (Op (Const 1) [])
        (Let [Op Sub [Op (Const 1) []; Var 1]]
-         (Op Mult [Var 2; Call 0 (SOME 0) [Var 0] NONE])))``
+         (Op Mult [Var 2; Call 0 (SOMEF 0) [Var 0] NONE])))``
 
 val opt_tm = ``
   Let [Op LessEq [Var 0; Op (Const 1) []]]
      (If (Var 0) (Op Mult [Var 2; Op (Const 1) []])
         (Let [Op Sub [Op (Const 1) []; Var 1]]
-           (Call 0 (SOME 1) [Var 0; Op Mult [Var 3; Var 2]]
+           (Call 0 (SOMEF 1) [Var 0; Op Mult [Var 3; Var 2]]
               NONE)))``
 val aux_tm = ``Let [Var 0; Op (Const 1) []] ^opt_tm``
 
 Theorem fac_check_exp
-  `check_exp 0 1 ^fac_tm = SOME Times` (EVAL_TAC);
+  `check_exp (Function_Name 0) 1 ^fac_tm = SOME Times` (EVAL_TAC);
 
 Theorem fac_compile_exp
-  `compile_exp 0 1 1 ^fac_tm = SOME (^aux_tm, ^opt_tm)` (EVAL_TAC);
+  `compile_exp (Function_Name 0) (Function_Name 1) 1 ^fac_tm
+    = SOME (^aux_tm, ^opt_tm)` (EVAL_TAC);
 
 val rev_tm = ``
   Let [Op (Const 0) []]
@@ -691,7 +692,7 @@ val rev_tm = ``
           (Let [Op El [Op (Const 1) []; Var 2]]
             (Op ListAppend
               [Op (Cons 0) [Op (Cons 0) []; Var 1];
-               Call 0 (SOME 444) [Var 0] NONE]))))``
+               Call 0 (SOMEF 444) [Var 0] NONE]))))``
 
 val opt_tm = ``
   Let [Op (Const 0) []]
@@ -699,7 +700,7 @@ val opt_tm = ``
         (Op ListAppend [Var 2; Op (Cons 0) []])
         (Let [Op El [Op (Const 0) []; Var 1]]
           (Let [Op El [Op (Const 1) []; Var 2]]
-            (Call 0 (SOME 445)
+            (Call 0 (SOMEF 445)
               [Var 0;
                Op ListAppend [Var 4; Op (Cons 0) [Op (Cons 0) []; Var 1]]]
               NONE))))``
@@ -707,9 +708,10 @@ val opt_tm = ``
 val aux_tm = ``Let [Var 0; Op (Cons 0) []] ^opt_tm``
 
 Theorem rev_check_exp
-  `check_exp 444 1 ^rev_tm = SOME Append` (EVAL_TAC);
+  `check_exp (Function_Name 444) 1 ^rev_tm = SOME Append` (EVAL_TAC);
 
 Theorem rev_compile_exp
-  `compile_exp 444 445 1 ^rev_tm = SOME (^aux_tm, ^opt_tm)` (EVAL_TAC);
+  `compile_exp (Function_Name 444) (Function_Name 445) 1 ^rev_tm
+    = SOME (^aux_tm, ^opt_tm)` (EVAL_TAC);
 
 val _ = export_theory();

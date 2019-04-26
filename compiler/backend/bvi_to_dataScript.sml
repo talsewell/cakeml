@@ -170,7 +170,7 @@ val compile_exp = Define `
     optimise (FST (compile arg_count (COUNT_LIST arg_count) T [] [exp]))`
 
 val compile_part = Define `
-  compile_part (name:num, arg_count, exp) =
+  compile_part (name:fname, arg_count, exp) =
     (name, arg_count, compile_exp arg_count exp)`
 
 val compile_prog_def = Define `

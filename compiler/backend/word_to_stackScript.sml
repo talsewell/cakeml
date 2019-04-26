@@ -289,10 +289,9 @@ val comp_def = Define `
                let (q3,bs) = comp handle_code bs kf in
                 (Seq q0
                 (Seq q1
-                (Seq (PushHandler h1 h2 kf)
                 (Seq (StackHandlerArgs dest (LENGTH args + 1) kf)
-                     (Call (SOME (PopHandler kf q2,0,l1,l2)) dest (SOME (q3,h1,h2)))))),
-                 bs)) /\
+                     (Call (SOME (PopHandler kf q2,0,l1,l2)) dest (ARB (SOME (q3,h1,h2))))))),
+                bs) /\
   (comp (Alloc r live) bs kf =
      let (q1,bs) = wLive live bs kf in
        (Seq q1 (Alloc 1),bs)) /\

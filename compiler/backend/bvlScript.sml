@@ -12,7 +12,7 @@
    BVL uses De Bruijn indices so there is no need for a variable name
    in the let-expression.
 
-   The optional number in the call expression below is the label to
+   The optional function name in the call expression below is the label to
    which the call will target. If that component is NONE, then the
    target address is read from the end of the argument list, i.e. in
    case of NONE, the last exp in the argument list must evaluate
@@ -33,7 +33,7 @@ val _ = Datatype `
       | Raise exp
       | Handle exp exp
       | Tick exp
-      | Call num (num option) (exp list)
+      | Call num (fname option) (exp list)
       | Op closLang$op (exp list) `
 
 val Bool_def = Define`

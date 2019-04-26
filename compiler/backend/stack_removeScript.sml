@@ -264,13 +264,13 @@ val init_code_def = Define `
                 add_bytes_in_word_inst 0;
                 load_inst 1 0;
                 init_memory k (MAP (store_init gen_gc k) (REVERSE store_list));
-                LocValue 0 1 0]`
+                LocValue 0 (Function_Name 1) 0]`
 
 val init_stubs_def = Define `
   init_stubs gen_gc max_heap k start =
-    [(0n,Seq (init_code gen_gc max_heap k) (Call NONE (INL start) NONE));
-     (1n,halt_inst 0w);
-     (2n,halt_inst 2w)]`
+    [(Function_Name 0,Seq (init_code gen_gc max_heap k) (Call NONE (INL start) NONE));
+     (Function_Name 1,halt_inst 0w);
+     (Function_Name 2,halt_inst 2w)]`
 
 Theorem check_init_stubs_length
   `LENGTH (init_stubs gen_gc max_heap k start) + 1 (* gc *) =

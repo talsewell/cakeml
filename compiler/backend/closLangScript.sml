@@ -9,7 +9,7 @@ local open astTheory in end
 
 val _ = new_theory "closLang";
 
-val _ = set_grammar_ancestry ["ast"]
+val _ = set_grammar_ancestry ["ast", "backend_common"]
 
 (* compilation from this language removes closures *)
 
@@ -46,7 +46,7 @@ val _ = Datatype `
      | Ref           (* makes a reference *)
      | Deref         (* loads a value from a reference *)
      | Update        (* updates a reference *)
-     | Label num     (* constructs a CodePtr *)
+     | Label fname   (* constructs a CodePtr *)
      | FFI string    (* calls the FFI *)
      | Equal         (* structural equality *)
      | EqualInt int  (* equal to integer constant *)
@@ -82,10 +82,10 @@ val _ = Datatype `
       | Raise tra exp
       | Handle tra exp exp
       | Tick tra exp
-      | Call tra num (* ticks *) num (* loc *) (exp list) (* args *)
-      | App tra (num option) exp (exp list)
-      | Fn tra (num option) (num list option) num exp
-      | Letrec tra (num option) (num list option) ((num # exp) list) exp
+      | Call tra num (* ticks *) fname (* loc *) (exp list) (* args *)
+      | App tra (fname option) exp (exp list)
+      | Fn tra (fname option) (num list option) num exp
+      | Letrec tra (fname option) (num list option) ((num # exp) list) exp
       | Op tra op (exp list) `;
 
 val exp_size_def = definition"exp_size_def";

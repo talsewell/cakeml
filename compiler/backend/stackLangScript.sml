@@ -26,10 +26,10 @@ val _ = Datatype `
        | Inst ('a inst)
        | Get num store_name
        | Set store_name num
-       | Call ((stackLang$prog # num # num # num) option)
+       | Call ((stackLang$prog # num # fname # num) option)
               (* return-handler code, link reg, labels l1,l2*)
-              (num + num) (* target of call *)
-              ((stackLang$prog # num # num) option)
+              (fname + num) (* target of call, function or register *)
+              ((stackLang$prog # fname # num) option)
               (* handler: exception-handler code, labels l1,l2*)
        | Seq stackLang$prog stackLang$prog
        | If cmp num ('a reg_imm) stackLang$prog stackLang$prog
@@ -41,7 +41,7 @@ val _ = Datatype `
        | FFI string num num num num num (* FFI index, conf_ptr, conf_len,
                                            array_ptr, array_len, ret_addr *)
        | Tick
-       | LocValue num num num   (* assign v1 := Loc v2 v3 *)
+       | LocValue num fname num  (* assign v1 := Loc v2 v3 *)
        | Install num num num num num (* code buffer start, length of new code,
                                       data buffer start, length of new data, ret_addr *)
        | CodeBufferWrite num num (* code buffer address, byte to write *)
@@ -81,7 +81,7 @@ val list_Seq_def = Define `
   (list_Seq (x::y::xs) = Seq x (list_Seq (y::xs)))`;
 
 val gc_stub_location_def = Define`
-  gc_stub_location = stack_num_stubs-1`;
+  gc_stub_location = Function_Name (stack_num_stubs-1)`;
 val gc_stub_location_eq = save_thm("gc_stub_location_eq",
   gc_stub_location_def |> CONV_RULE(RAND_CONV EVAL));
 

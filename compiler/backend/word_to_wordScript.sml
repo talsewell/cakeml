@@ -20,7 +20,7 @@ val _ = Datatype`config =
    ; col_oracle : num -> (num num_map) option |>`;
 
 val compile_single_def = Define`
-  compile_single two_reg_arith reg_count alg c ((name_num:num,arg_count,prog),col_opt) =
+  compile_single two_reg_arith reg_count alg c ((name_num:fname,arg_count,prog),col_opt) =
   let prog = word_simp$compile_exp prog in
   let maxv = max_var prog + 1 in
   let inst_prog = inst_select c maxv prog in

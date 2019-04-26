@@ -81,19 +81,19 @@ val alloc_glob_count_def = tDefine "alloc_glob_count" `
   (WF_REL_TAC `measure exp1_size`)
 
 val AllocGlobal_location_def = Define`
-  AllocGlobal_location = data_num_stubs`;
+  AllocGlobal_location = Function_Name data_num_stubs`;
 val CopyGlobals_location_def = Define`
-  CopyGlobals_location = AllocGlobal_location+1`;
+  CopyGlobals_location = FNA ((+) 1) AllocGlobal_location`;
 val InitGlobals_location_def = Define`
-  InitGlobals_location = CopyGlobals_location+1`;
+  InitGlobals_location = FNA ((+) 1)CopyGlobals_location`;
 val ListLength_location_def = Define`
-  ListLength_location = InitGlobals_location+1`;
+  ListLength_location = FNA ((+) 1) InitGlobals_location`;
 val FromListByte_location_def = Define`
-  FromListByte_location = ListLength_location+1`;
+  FromListByte_location = FNA ((+) 1) ListLength_location`;
 val SumListLength_location_def = Define`
-  SumListLength_location = FromListByte_location+1`;
+  SumListLength_location = FNA ((+) 1) FromListByte_location`;
 val ConcatByte_location_def = Define`
-  ConcatByte_location = SumListLength_location+1`;
+  ConcatByte_location = FNA ((+) 1) SumListLength_location`;
 
 val AllocGlobal_location_eq = save_thm("AllocGlobal_location_eq",
   ``AllocGlobal_location`` |> EVAL);
@@ -186,6 +186,9 @@ val stubs_def = Define `
 
 val _ = temp_overload_on ("num_stubs", ``backend_common$bvl_num_stubs``)
 
+val adj_label_def = Define `adj_label
+    = FNA (\i. bvl_num_stubs + bvl_to_bvi_namespaces * i)`;
+
 local val compile_op_quotation = `
   compile_op op c1 =
     dtcase op of
@@ -236,7 +239,7 @@ local val compile_op_quotation = `
         (Let [Op (RefByte T) [Op (Const 0) []; Var 0]]
            (Let [Op (CopyByte F) [Op (Const 0) []; Var 0; Var 1; Var 2; Var 3]]
              (Var 1)))
-    | Label l => Op (Label (bvl_num_stubs + bvl_to_bvi_namespaces * l)) c1
+    | Label l => Op (Label (adj_label l)) c1
     | _ => Op op c1`
 in
 val compile_op_def = Define compile_op_quotation;
@@ -254,9 +257,12 @@ end
 val _ = temp_overload_on("++",``SmartAppend``);
 val _ = temp_overload_on("nss",``bvl_to_bvi_namespaces``);
 
+val loc_offs_def = Define `loc_offs n off
+    = FNA (\i. num_stubs + (nss * i) + off) n`;
+
 val compile_aux_def = Define`
   compile_aux (k,args,p) =
-    List[(num_stubs + nss * k + 1, args, bvi_let$compile_exp p)]`;
+    List[(loc_offs k 1, args, bvi_let$compile_exp p)]`;
 
 val compile_exps_def = tDefine "compile_exps" `
   (compile_exps n [] = ([],Nil,n)) /\
@@ -275,8 +281,8 @@ val compile_exps_def = tDefine "compile_exps" `
        let (args,x0) = destLet x2 in
        let (c1,aux1,n1) = compile_exps n args in
        let (c2,aux2,n2) = compile_exps n1 [x0] in
-       let n3 = n2 + 1 in
-         ([Call 0 (SOME (num_stubs + nss * n2 + 1)) c1 NONE],
+       let n3 = FNA ((+) 1) n2 in
+         ([Call 0 (SOME (loc_offs n2 1)) c1 NONE],
           aux1++aux2++compile_aux(n2,LENGTH args,HD c2), n3)
      else
        let (c1,aux1,n1) = compile_exps n xs in
@@ -297,15 +303,15 @@ val compile_exps_def = tDefine "compile_exps" `
      let (c2,aux2,n2) = compile_exps n1 [x0] in
      let (c3,aux3,n3) = compile_exps n2 [x2] in
      let aux4 = compile_aux(n3,LENGTH args,HD c2) in
-     let n4 = n3 + 1 in
-       ([Call 0 (SOME (num_stubs + nss * n3 + 1)) c1 (SOME (HD c3))],
+     let n4 = FNA ((+) 1) n3 in
+       ([Call 0 (SOME (loc_offs n3 1)) c1 (SOME (HD c3))],
         aux1++aux2++aux3++aux4, n4)) /\
   (compile_exps n [Call ticks dest xs] =
      let (c1,aux1,n1) = compile_exps n xs in
        ([Call ticks
               (dtcase dest of
                | NONE => NONE
-               | SOME n => SOME (num_stubs + nss * n)) c1 NONE],aux1,n1))`
+               | SOME n => SOME (loc_offs n 0)) c1 NONE],aux1,n1))`
  (WF_REL_TAC `measure (exp1_size o SND)`
   \\ REPEAT STRIP_TAC \\ TRY DECIDE_TAC
   \\ TRY (Cases_on `x1`) \\ fs [destLet_def]
@@ -332,7 +338,7 @@ Theorem compile_exps_SING
 val compile_single_def = Define `
   compile_single n (name,arg_count,exp) =
     let (c,aux,n1) = compile_exps n [exp] in
-      (List [(num_stubs + nss * name,arg_count,bvi_let$compile_exp (HD c))]
+      (List [(loc_offs name 0,arg_count,bvi_let$compile_exp (HD c))]
         ++ aux, n1)`
 
 val compile_list_def = Define `
@@ -351,14 +357,14 @@ val compile_prog_def = Define `
   compile_prog start n prog =
     let k = alloc_glob_count (MAP (\(_,_,p). p) prog) in
     let (code,n1) = compile_list n prog in
-      (InitGlobals_location, bvl_to_bvi$stubs (num_stubs + nss * start) k ++ append code, n1)`;
+      (InitGlobals_location, bvl_to_bvi$stubs (loc_offs start 0) k ++ append code, n1)`;
 
 val _ = Datatype`
   config = <| inline_size_limit : num (* zero disables inlining *)
             ; exp_cut : num (* huge number effectively disables exp splitting *)
             ; split_main_at_seq : bool (* split main expression at Seqs *)
-            ; next_name1 : num (* there should be as many of       *)
-            ; next_name2 : num (* these as bvl_to_bvi_namespaces-1 *)
+            ; next_name1 : fname (* there should be as many of       *)
+            ; next_name2 : fname (* these as bvl_to_bvi_namespaces-1 *)
             ; inlines : (num # bvl$exp) spt
             |>`;
 
@@ -367,8 +373,8 @@ val default_config_def = Define`
     <| inline_size_limit := 10
      ; exp_cut := 1000
      ; split_main_at_seq := T
-     ; next_name1 := num_stubs + 1
-     ; next_name2 := num_stubs + 2
+     ; next_name1 := Function_Name (num_stubs + 1)
+     ; next_name2 := Function_Name (num_stubs + 2)
      ; inlines := LN
      |>`;
 
@@ -376,8 +382,8 @@ val compile_def = Define `
   compile start c prog =
     let (inlines, prog) = bvl_inline$compile_prog c.inline_size_limit
            c.split_main_at_seq c.exp_cut prog in
-    let (loc, code, n1) = compile_prog start 0 prog in
-    let (n2, code') = bvi_tailrec$compile_prog (num_stubs + 2) code in
+    let (loc, code, n1) = compile_prog start (Function_Name 0) prog in
+    let (n2, code') = bvi_tailrec$compile_prog (Function_Name (num_stubs + 2)) code in
       (loc, code', inlines, n1, n2)`;
 
 val _ = export_theory();

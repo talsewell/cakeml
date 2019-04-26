@@ -110,4 +110,38 @@ val word_shift_def = Define `
        generated CakeML code *)
     if dimindex (:'a) = 32 then 2 else 3:num`;
 
+(* a function-name wrapper. it's just num, but it clarifies where nums
+   are used as function names. *)
+val _ = Datatype `
+  Function_Name = <| fname : num |>`;
+val _ = type_abbrev ("fname", ``: Function_Name``);
+
+Theorem fname_eq[simp]
+  `(x.fname = y.fname) = ((x : fname) = y)`
+  (Cases_on `x` >> Cases_on `y` >> fs []);
+
+(* helper wrappers *)
+val FNA_def = Define `
+  FNA f x = Function_Name (f x.fname)`;
+
+Theorem FNA_fname[simp]
+  `(FNA f x).fname = f (x.fname)`
+  (Cases_on `x` >> fs [FNA_def]);
+
+Theorem FNA_EQ[simp]
+  `((FNA f n = m) = (f n.fname = m.fname))
+    /\ ((n = FNA f m) = (n.fname = f m.fname))`
+  (Cases_on `n` \\ Cases_on `m` \\ EVAL_TAC);
+
+val SOMEF_def = Define `SOMEF i = SOME (Function_Name i)`;
+val lookup_fn_def = Define `
+  lookup_fn fname = sptree$lookup (fname.fname)`;
+val insert_fn_def = Define `
+  insert_fn fname = sptree$insert (fname.fname)`;
+val list_insert_fn_def = Define `
+  list_insert_fn fnames = sptree$list_insert
+    (MAP (\fname. fname.fname) fnames)`;
+Theorem fn_wrappers_unfold[simp] = LIST_CONJ [lookup_fn_def, insert_fn_def,
+  list_insert_fn_def, SOMEF_def];
+
 val _ = export_theory();

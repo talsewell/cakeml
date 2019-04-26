@@ -32,19 +32,19 @@ val _ = Datatype `
        | Set store_name ('a exp)
        | Store ('a exp) num
        | MustTerminate wordLang$prog
-       | Call ((num # num_set # wordLang$prog # num # num) option)
-              (* return var, cut-set, return-handler code, labels l1,l2*)
-              (num option) (* target of call *)
+       | Call ((num # num_set # wordLang$prog # fname # num) option)
+              (* return var, cut-set, return-handler code, label pair l1,l2*)
+              (fname option) (* target of call *)
               (num list) (* arguments *)
-              ((num # wordLang$prog # num # num) option)
-              (* handler: varname, exception-handler code, labels l1,l2*)
+              ((num # wordLang$prog # fname # num) option)
+              (* handler: varname, exception-handler code, label pair l1,l2*)
        | Seq wordLang$prog wordLang$prog
        | If cmp num ('a reg_imm) wordLang$prog wordLang$prog
        | Alloc num num_set
        | Raise num
        | Return num num
        | Tick
-       | LocValue num num        (* assign v1 := Loc v2 0 *)
+       | LocValue num fname        (* assign v1 := Loc v2 0 *)
        | Install num num num num num_set (* code buffer start, length of new code,
                                       data buffer start, length of new data, cut-set *)
        | CodeBufferWrite num num (* code buffer address, byte to write *)
@@ -52,7 +52,7 @@ val _ = Datatype `
        | FFI string num num num num num_set (* FFI name, conf_ptr, conf_len, array_ptr, array_len, cut-set *) `;
 
 val raise_stub_location_def = Define`
-  raise_stub_location = word_num_stubs - 1`;
+  raise_stub_location = Function_Name (word_num_stubs - 1)`;
 val raise_stub_location_eq = save_thm("raise_stub_location_eq",
   EVAL``raise_stub_location``);
 

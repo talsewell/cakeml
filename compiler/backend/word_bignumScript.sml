@@ -422,11 +422,11 @@ val def = mc_use_fac_def |> to_deep
 val has_compiled_def = Define `
   has_compiled code (n,code_list) =
     case ALOOKUP code_list code of
-    | NONE => INR (n:num)
-    | SOME (index,word_code) => INL (index:num)`;
+    | NONE => INR (n:fname)
+    | SOME (index,word_code) => INL (index:fname)`;
 
 val code_acc_next_def = Define `
-  code_acc_next (n,code_list) = (n+1n,code_list)`
+  code_acc_next (n,code_list) = (FNA ((+) 1) n,code_list)`
 
 val install_def = Define `
   install c (n,code_list) = (n,c::code_list)`
@@ -462,7 +462,7 @@ val SeqIndex_def = Define `
               :'a wordLang$prog`
 
 val div_location_def = Define `
-  div_location = 21n`;
+  div_location = Function_Name 21n`;
 
 val DivCode_def = Define `
   DivCode l1 l2 n1 n2 n3 n4 n5 =
@@ -483,15 +483,15 @@ val compile_def = Define `
   (compile n l i cs Continue = (Call NONE (SOME n) [0] NONE,l,i,cs)) /\
   (compile n l i cs (Rec save_regs names) =
      (LoadRegs save_regs
-       (Call (SOME (1,list_insert (0::MAP (\n.n+2) save_regs) LN,
-          SaveRegs save_regs,n,l)) (SOME n) [] NONE),l+1,i,cs)) /\
+       (wordLang$Call (SOME (1,list_insert (0::MAP (\n.n+2) save_regs) LN,
+          SaveRegs save_regs,n,l.fname)) (SOME (n : fname)) [] NONE),FNA ((+) 1) l,i,cs)) /\
   (compile n l i cs (Loop rec_calls vs body) =
      case has_compiled body cs of
      | INL existing_index =>
-         (Call (SOME (i,LS (),Skip,n,l)) (SOME existing_index) [] NONE,l+1,i+1,cs)
+         (Call (SOME (i,LS (),Skip,n,l.fname)) (SOME existing_index) [] NONE,FNA ((+) 1) l,i+1,cs)
      | INR new_index =>
-         let (new_code,a,b,cs) = compile new_index 1 1 (code_acc_next cs) body in
-           (Call (SOME (i,LS (),Skip,n,l)) (SOME new_index) [] NONE,l+1,i+1,
+         let (new_code,a,b,cs) = compile new_index (Function_Name 1) 1 (code_acc_next cs) body in
+           (Call (SOME (i,LS (),Skip,n,l.fname)) (SOME new_index) [] NONE,FNA ((+) 1) l,i+1,
             install (body,new_index,new_code) cs)) /\
   (compile n l i cs (LoopBody b) = compile n l i cs b) /\
   (compile n l i cs (Seq p1 p2) =
@@ -537,16 +537,16 @@ val compile_def = Define `
           (Set (Temp (n2w r0)) (Var (i+1)))))),l,i+4,cs)) /\
   (compile n l i cs (Div r0 r1 r2 r3 r4) =
      (SeqTemp (i+4) r4 (SeqTemp (i+3) r3 (SeqTemp (i+2) r2
-     (Seq (DivCode n l (i+0) (i+1) (i+2) (i+3) (i+4))
+     (Seq (DivCode n l.fname (i+0) (i+1) (i+2) (i+3) (i+4))
      (Seq (Set (Temp (n2w r0)) (Var (i+0)))
-          (Set (Temp (n2w r1)) (Var (i+1))))))),l+1,i+5,cs)) /\
+          (Set (Temp (n2w r1)) (Var (i+1))))))),FNA ((+) 1) l,i+5,cs)) /\
   (compile n l i cs _ = (Skip,l,i,cs))`
 
 val _ = (max_print_depth := 25);
 
 val generated_bignum_stubs_def = Define `
   generated_bignum_stubs n =
-    let (x1,_,_,(_,cs)) = compile n 1 1 (n+1,[]) mc_iop_code in
+    let (x1,_,_,(_,cs)) = compile n (Function_Name 1) 1 (FNA ((+) 1) n,[]) mc_iop_code in
       (n,1n,Seq x1 (Return 0 0)) :: MAP (\(x,y,z). (y,1,Seq z (Return 0 0))) cs`
 
 val generated_bignum_stubs_eq = save_thm("generated_bignum_stubs_eq",
