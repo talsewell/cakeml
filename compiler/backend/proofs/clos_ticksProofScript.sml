@@ -498,109 +498,35 @@ Theorem evaluate_remove_ticks
       \\ PairCases_on `v1`
       \\ fs []
       \\ metis_tac [])
-    \\ qexists_tac`ck + LENGTH ts` \\ rw[]
-    \\ drule EVERY2_REVERSE \\ disch_tac
-      \\ drule (GEN_ALL do_install_lemma)
-      \\ disch_then drule
-      \\ fs [CaseEq "prod"]
-      \\ TOP_CASE_TAC
-      \\ TOP_CASE_TAC \\ rw [] \\ fs [] \\ rveq \\ fs []
-
-      \\ fs [CaseEq "prod"] \\ rfs []
-      \\ fs [code_rel_def]
-      \\ FIRST_X_ASSUM drule
-      \\ disch_then (ASSUME_TAC o Q.SPEC `a'`)
-      \\ fs [CaseEq "result"]
-
-won't work - clock has changed
-
-      \\ rw [] \\ fs []
-      \\ fs [CaseEq "prod", CaseEq "result"] \\ rveq \\ fs []
-      \\ ho_match_mp_tac LIST_REL_LAST
-      \\ fs []
-      \\ CCONTR_TAC
- 
-     (*
     (* op = Install *)
-    \\ qpat_x_assum `_ = (res2, t2)` mp_tac
-    \\ simp [Once do_install_def]
-    \\ drule EVERY2_REVERSE
-    \\ qabbrev_tac `a1 = REVERSE a`
-    \\ qabbrev_tac `v1 = REVERSE vs`
-    \\ strip_tac
-    \\ Cases_on `a1` \\ fs [] \\ rveq
-    THEN1 (rw [] \\ qexists_tac `ck + LENGTH ts` \\ fs [do_install_def] \\ rw [])
-    \\ Cases_on `t` \\ fs [] \\ rveq
-    THEN1 (rw [] \\ qexists_tac `ck + LENGTH ts` \\ fs [do_install_def] \\ rw [])
-    \\ reverse (Cases_on `t'`) \\ fs [] \\ rveq
-    THEN1 (rw [] \\ qexists_tac `ck + LENGTH ts` \\ fs [do_install_def] \\ rw [])
-    \\ rename1 `v_rel x2 y2` \\ pop_assum mp_tac
-    \\ drule v_rel_IMP_v_to_bytes \\ strip_tac
-    \\ rename1 `v_rel x1 y1` \\ strip_tac
-    \\ drule v_rel_IMP_v_to_words \\ strip_tac \\ fs []
-    \\ Cases_on `v_to_bytes x1` \\ fs []
-    THEN1 (fs [do_install_def] \\ rw [] \\ qexists_tac `ck + LENGTH ts` \\ fs [])
-    \\ Cases_on `v_to_words x2` \\ fs []
-    THEN1 (fs [do_install_def] \\ rw [] \\ qexists_tac `ck + LENGTH ts` \\ fs [])
-    \\ pairarg_tac \\ fs []
-    \\ PairCases_on `progs`
-    \\ Cases_on `s2.compile_oracle 0`
-    \\ PairCases_on `r`
-    \\ `r1 = [] /\ progs1 = []` by
-       (fs [state_rel_def] \\ rfs [pure_co_def] \\ fs [compile_inc_def]
-        \\ rveq \\ fs [] \\ metis_tac [SND])
-    \\ rveq \\ fs []
-    \\ Cases_on `s'.compile cfg (progs0,[])` \\ fs []
-    THEN1 (rw [] \\ qexists_tac `ck + LENGTH ts` \\ fs [do_install_def] \\ rw []
-           \\ fs [state_rel_def,pure_cc_def,compile_inc_def]
-           \\ rfs [] \\ fs [] \\ rfs [pure_co_def,compile_inc_def])
-    \\ rename1 `_ = SOME xx` \\ PairCases_on `xx` \\ fs []
-    \\ reverse IF_CASES_TAC
-    THEN1 (rw [] \\ qexists_tac `ck + LENGTH ts` \\ fs [do_install_def] \\ rw []
-           \\ fs [state_rel_def,pure_cc_def,compile_inc_def]
-           \\ rfs [] \\ fs [] \\ rfs [pure_co_def,compile_inc_def]
-           \\ IF_CASES_TAC \\ fs [shift_seq_def]
-           \\ metis_tac[LENGTH_remove_ticks, LENGTH_NIL])
-    \\ IF_CASES_TAC
-    THEN1 (rw [] \\ qexists_tac `ck + LENGTH ts` \\ fs [do_install_def] \\ rw []
-           \\ fs [state_rel_def,pure_cc_def,compile_inc_def]
-           \\ rfs [] \\ fs [] \\ rfs [pure_co_def,compile_inc_def]
-           \\ IF_CASES_TAC \\ fs [shift_seq_def]
-           \\ fs [FUPDATE_LIST, o_DEF]
-           \\ metis_tac[LENGTH_remove_ticks, LENGTH_NIL])
-    \\ fs [] \\ rveq \\ fs []
-    \\ strip_tac
-    \\ qpat_x_assum `!x. _` mp_tac
-    \\ simp [Once do_install_def]
-    \\ fs[CaseEq"prod"]
-    \\ disch_then (qspec_then `s2 with
-                               <|clock := s'.clock − 1;
-                                 compile_oracle := (λi. s2.compile_oracle (i + 1));
-                                 code := s2.code |++ []|>` mp_tac)
-    \\ disch_then (qspec_then `r0` mp_tac)
-    \\ impl_tac
-    THEN1 (rfs [state_rel_def] \\ fs [pure_co_def, compile_inc_def]
-           \\ rveq \\ fs [shift_seq_def, FUPDATE_LIST, o_DEF])
-    \\ fs [] \\ strip_tac
-    \\ qexists_tac `ck + ck' + LENGTH ts` \\ fs []
-    \\ imp_res_tac evaluate_clock
-    \\ bump_assum `evalulate (es, _, _) = _`
-    \\ drule evaluate_add_clock \\ fs []
-    \\ disch_then kall_tac
-    \\ `s2.clock = s'.clock /\
-        s2.compile = pure_cc compile_inc s'.compile /\
-        s'.compile_oracle = pure_co compile_inc ∘ s2.compile_oracle`
-          by fs [state_rel_def]
-    \\ fs [do_install_def]
-    \\ fs [pure_cc_def,compile_inc_def,pure_co_def,shift_seq_def]
-    \\ reverse IF_CASES_TAC >- metis_tac[LENGTH_remove_ticks, LENGTH_NIL]
-    \\ fs[]
-    \\ rveq
-    \\ CASE_TAC \\ fs[] \\ rveq \\ fs[] \\ rveq \\ fs[]
-    \\ imp_res_tac evaluate_IMP_LENGTH
-    \\ Q.ISPEC_THEN`a'`FULL_STRUCT_CASES_TAC SNOC_CASES \\ fs[LIST_REL_SNOC]
-    *)
+    \\ drule EVERY2_REVERSE \\ disch_tac
+    \\ drule (GEN_ALL do_install_lemma)
+    \\ disch_then drule
+    \\ fs [CaseEq "prod"]
+    \\ TOP_CASE_TAC
+    \\ reverse TOP_CASE_TAC
+    >- (
+      rw [] \\ qexists_tac`ck + LENGTH ts` \\ rw []
+      \\ fs [] \\ rveq \\ fs [] \\ rfs []
     )
+    \\ rw [] \\ fs [CaseEq "prod"] \\ rfs []
+    \\ FIRST_X_ASSUM drule
+    \\ disch_then drule
+    \\ disch_then (drule o SIMP_RULE bool_ss [GSYM code_rel_def])
+    \\ fs [code_rel_def]
+    \\ rw []
+    \\ qexists_tac `ck' + ck + LENGTH ts` \\ rw[]
+    \\ imp_res_tac evaluate_clock
+    \\ imp_res_tac evaluate_add_clock \\ fs []
+    \\ imp_res_tac do_install_add_to_clock
+    \\ imp_res_tac evaluate_length_imp
+    \\ fs []
+    \\ CASE_TAC \\ fs [] \\ rveq \\ fs [] \\ rveq \\ fs []
+    \\ irule LIST_REL_LAST
+    \\ rw []
+    \\ CCONTR_TAC
+    \\ fs []
+  )
   THEN1 (* Fn *)
    (fs [LENGTH_EQ_NUM_compute] \\ rveq
     \\ fs [code_rel_def]

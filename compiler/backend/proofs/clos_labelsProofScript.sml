@@ -241,6 +241,11 @@ val do_install_lemma = prove(
 
 (* evaluate level correctness *)
 
+(* FIXME: in the presence of Install/do_install this simply isn't true.
+   it's not clear how to fix up this proof at all really. there might be
+   no current reference to a given code label, but how do we know that
+   Install might not cause the compile oracle to cook one up? *)
+
 val evaluate_code_const_ind =
   evaluate_ind
   |> Q.SPEC `\(xs,env,s).
