@@ -579,8 +579,7 @@ val do_install_lemma = prove(
   \\ fs [compile_inc_def, pairTheory.FORALL_PROD,
             clos_mtiTheory.intro_multi_length, code_rel_def, state_rel_def]
   \\ rw [shift_seq_def, backendPropsTheory.pure_co_def, FUN_EQ_THM] \\ rfs []
-  \\ Cases_on `SND (r.compile_oracle n)` \\ fs [compile_inc_def]
-  \\ rw [] \\ fs [clos_mtiTheory.intro_multi_length]
+  \\ fs [PAIR_FST_SND_EQ] \\ rveq \\ fs []
   );
 
 Theorem intro_multi_EQ_NIL[simp]
@@ -1500,9 +1499,7 @@ Theorem intro_multi_no_Labels
 Theorem semantics_intro_multi
   `semantics (ffi:'ffi ffi_state) max_app FEMPTY
      co (pure_cc (compile_inc max_app) cc) xs <> Fail ==>
-   (*
    (∀n. SND (SND (co n)) = [] ∧ syntax_ok (FST (SND (co n)))) ∧
-   *)
    1 <= max_app /\ syntax_ok xs ==>
    semantics (ffi:'ffi ffi_state) max_app FEMPTY
      (pure_co (compile_inc max_app) ∘ co) cc

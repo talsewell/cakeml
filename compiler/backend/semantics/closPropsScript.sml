@@ -2141,7 +2141,7 @@ val simple_compile_state_rel_def = Define `
         sr s t ==>
         t.clock = s.clock /\ s.compile = pure_cc comp t.compile /\
         t.compile_oracle = pure_co comp o s.compile_oracle /\
-        (! n exps res p aux. (p, aux) = SND (s.compile_oracle n) ==>
+        (! n exps res p aux. SND (s.compile_oracle n) = (p, aux) ==>
             comp (p, aux) = (exps, res) ==>
             res = [] /\ LENGTH exps = LENGTH p /\ cr p exps) /\
         (!n. SND (SND (s.compile_oracle n)) = []) /\
@@ -2218,8 +2218,8 @@ Proof
   \\ rpt (TYPE_CASE_TAC "list" \\ fs [])
   \\ imp_res_tac simple_val_rel_v_to_bytes
   \\ imp_res_tac simple_val_rel_v_to_words
-  \\ Cases_on `comp (SND (s.compile_oracle 0))`
-  \\ FIRST_X_ASSUM drule
+  \\ Cases_on `SND (s.compile_oracle 0)`
+  \\ FIRST_X_ASSUM drule \\ rfs [] \\ rveq
   \\ rfs [pure_co_def, EVAL ``shift_seq k s 0``, pure_cc_def]
   \\ EVERY_CASE_TAC \\ rfs [] \\ fs [finite_mapTheory.FUPDATE_LIST_THM]
 QED
