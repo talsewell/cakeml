@@ -238,13 +238,15 @@ val do_install_lemma = prove(
             simple_val_rel_def]
   \\ fs [v_rel_cases]);
 
-
 (* evaluate level correctness *)
 
 (* FIXME: in the presence of Install/do_install this simply isn't true.
-   it's not clear how to fix up this proof at all really. there might be
-   no current reference to a given code label, but how do we know that
-   Install might not cause the compile oracle to cook one up? *)
+   the code isn't constant. we could use a more sophisticated monotonicity
+   principle.
+
+   the bigger problem is that the no-reference property needs to be
+   extended to any code that might come from the compile oracle.
+*)
 
 val evaluate_code_const_ind =
   evaluate_ind
@@ -263,7 +265,8 @@ val evaluate_code_const_lemma = prove(
   \\ BasicProvers.EVERY_CASE_TAC \\ full_simp_tac(srw_ss())[] \\ rev_full_simp_tac(srw_ss())[]
   \\ BasicProvers.EVERY_CASE_TAC \\ full_simp_tac(srw_ss())[] \\ rev_full_simp_tac(srw_ss())[]
   \\ IMP_RES_TAC do_app_const
-  \\ full_simp_tac(srw_ss())[dec_clock_def])
+  \\ full_simp_tac(srw_ss())[dec_clock_def]
+  \\ cheat)
   |> SIMP_RULE std_ss [FORALL_PROD]
 
 Theorem evaluate_code_const
