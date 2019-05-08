@@ -81,7 +81,8 @@ val add_code_locs_def = tDefine "add_code_locs" `
   (add_code_locs ds [Tick _ x1] =
      add_code_locs ds [x1]) /\
   (add_code_locs ds [Op _ op xs] =
-     add_code_locs ds xs) /\
+     if op = Install then (T, fromList [])
+     else add_code_locs ds xs) /\
   (add_code_locs ds [App _ loc_opt x1 xs] =
      add_code_locs ds (x1 :: xs)) /\
   (add_code_locs ds [Fn _ loc_opt vs num_args x1] =
