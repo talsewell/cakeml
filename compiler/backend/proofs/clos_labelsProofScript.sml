@@ -16,21 +16,31 @@ Proof
   ho_match_mp_tac add_code_locs_ind \\ fs [add_code_locs_def] \\ rw []
 QED
 
-val has_install_if_fold = prove (
+Theorem has_install_fold:
+  FST (add_code_locs ds xs) = has_install xs
+Proof
+  metis_tac [has_install_def, FST_add_code_locs]
+QED
+
+val FST_if_helper = prove (
   ``(FST (if P then (T, y) else tup) = (P \/ FST tup))``,
   EVERY_CASE_TAC);
 
-val has_install_norm = [
-    Q.SPECL [`fromList []`, `xs`, `SND x`] FST_add_code_locs,
-    Q.SPECL [`fromList []`, `xs`, `insert x () s`] FST_add_code_locs,
-    Q.SPECL [`fromList []`, `xs`, `list_insert xs s`] FST_add_code_locs]
+Theorem has_install_CONS:
+  has_install (x :: xs) <=> (I has_install [x] \/ has_install xs)
+Proof
+  Cases_on `xs` \\ fs []
+  \\ fs [has_install_def, add_code_locs_def, FST_if_helper]
+  \\ fs [has_install_fold]
+QED
 
 Theorem has_install_cases = add_code_locs_def |> BODY_CONJUNCTS
   |> map (rand o lhs o concl)
   |> map (curry mk_icomb ``has_install``)
-  |> map (SIMP_CONV (srw_ss()) ([has_install_def, add_code_locs_def, LET_DEF,
-        has_install_if_fold] @ has_install_norm))
-  |> map (REWRITE_RULE [GSYM has_install_def])
+  |> map (SIMP_CONV bool_ss [has_install_def, add_code_locs_def, LET_DEF,
+        FST_if_helper]
+    THENC SIMP_CONV bool_ss [has_install_fold, has_install_CONS]
+    THENC SIMP_CONV bool_ss [I_THM, FST, Q.SPEC `[]` has_install_def, add_code_locs_def])
   |> LIST_CONJ
 
 Theorem LENGTH_remove_dests
@@ -67,15 +77,8 @@ Theorem code_rel_IMP_LENGTH
 Theorem code_rel_CONS_CONS
   `code_rel dests (x1::x2::xs) (y1::y2::ys) <=>
       code_rel dests [x1] [y1] /\ code_rel dests (x2::xs) (y2::ys)`
-  (EQ_TAC
-    \\ simp [code_rel_def, remove_dests_def, has_install_CONS_CONS]
-    \\ metis_tac [HD]);
-
-Theorem has_install_CONS:
-  has_install (x :: xs) <=> (has_install [x] \/ has_install xs)
-Proof
-  Cases_on `xs` \\ fs [has_install_cases]
-QED
+  (EQ_TAC \\ simp [code_rel_def, remove_dests_def, has_install_cases]
+    \\ TRY (metis_tac [HD, has_install_CONS, I_THM]));
 
 (* value relation *)
 
@@ -271,6 +274,12 @@ Theorem evaluate_code_const
   \\ (evaluate_code_const_lemma |> CONJUNCT1 |> Q.ISPECL_THEN [`xs`,`env`,`s`] mp_tac)
   \\ full_simp_tac(srw_ss())[]);
 
+Theorem has_install_MAP:
+  has_install (MAP f xs) <=> EXISTS (\x. has_install [f x]) xs
+Proof
+  Induct_on `xs` \\ fs [Once has_install_CONS] \\ fs [has_install_cases]
+QED
+
 Theorem evaluate_remove_dests_no_install
   `(!xs env1 (s1:('c,'ffi) closSem$state) res1 s2 ys env2 t1.
       evaluate (xs, env1, s1) = (res1, s2) /\
@@ -293,9 +302,7 @@ Theorem evaluate_remove_dests_no_install
         evaluate_app loc_opt f2 args2 t1 = (res2, t2) /\
         result_rel (LIST_REL (v_rel ds)) (v_rel ds) res1 res2 /\
         state_rel ds s2 t2)`
-  (
-
-ho_match_mp_tac (evaluate_ind |> Q.SPEC `\(x1,x2,x3). P0 x1 x2 x3`
+  (ho_match_mp_tac (evaluate_ind |> Q.SPEC `\(x1,x2,x3). P0 x1 x2 x3`
                    |> Q.GEN `P0` |> SIMP_RULE std_ss [FORALL_PROD])
   \\ conj_tac
   >- (
@@ -336,7 +343,6 @@ ho_match_mp_tac (evaluate_ind |> Q.SPEC `\(x1,x2,x3). P0 x1 x2 x3`
     \\ reverse (fs [case_eq_thms, pair_case_eq, code_locs_def])
     \\ rveq \\ fsrw_tac[DNF_ss] [PULL_EXISTS]
     \\ imp_res_tac evaluate_code_const
-    \\ rfs [in_dom_def] \\ fs []
     \\ first_x_assum drule
     \\ disch_then drule
     \\ strip_tac
@@ -356,7 +362,6 @@ ho_match_mp_tac (evaluate_ind |> Q.SPEC `\(x1,x2,x3). P0 x1 x2 x3`
   \\ conj_tac THEN1 (* Let *)
    (fs [code_rel_def, remove_dests_def, has_install_cases]
     \\ rw[evaluate_def]
-    \\ fs [Once has_install_CONS, has_install_cases]
     \\ fsrw_tac[DNF_ss][CaseEq"prod",code_locs_def]
     \\ imp_res_tac evaluate_code_const \\ fs[]
     \\ first_x_assum drule
@@ -381,9 +386,8 @@ ho_match_mp_tac (evaluate_ind |> Q.SPEC `\(x1,x2,x3). P0 x1 x2 x3`
     \\ rw [evaluate_def]
     \\ fs [pair_case_eq, code_locs_def]
     \\ imp_res_tac evaluate_code_const
-    \\ rfs [in_dom_def] \\ fs []
     \\ first_x_assum drule
-    \\ disch_then drule
+    \\ rpt (disch_then drule)
     \\ strip_tac \\ fs []
     \\ fs [case_eq_thms] \\ rveq \\ fs []
     \\ fsrw_tac[DNF_ss][ADD1])
@@ -394,18 +398,7 @@ ho_match_mp_tac (evaluate_ind |> Q.SPEC `\(x1,x2,x3). P0 x1 x2 x3`
     \\ first_x_assum drule
     \\ ntac 2 (disch_then drule)
     \\ strip_tac \\ fs []
-    \\ fs [case_eq_thms] \\ rveq \\ fs []
-    \\ IF_CASES_TAC \\ rveq \\ fs []
-    THEN1 (* Op = Install *)
-    (drule EVERY2_REVERSE \\ disch_tac
-      \\ drule (GEN_ALL do_install_lemma)
-      \\ disch_then drule
-      \\ fs [CaseEq "prod"]
-
-code_rel_def
-       (
-      (rveq \\ fs[])
-    (* op <> Install *)
+    \\ fs [Once case_eq_thms] \\ rveq \\ fs []
     \\ drule EVERY2_REVERSE \\ disch_tac
     \\ drule (GEN_ALL do_app_lemma)
     \\ disch_then drule
@@ -414,7 +407,7 @@ code_rel_def
     \\ rveq \\ fs []
     \\ strip_tac \\ fs [])
   \\ conj_tac THEN1 (* Fn *)
-   (fs [code_rel_def, remove_dests_def] \\ rveq
+   (fs [code_rel_def, remove_dests_def, has_install_cases] \\ rveq
     \\ rw [evaluate_def]
     \\ `t1.max_app = s1.max_app` by fs [state_rel_def]
     \\ fs []
@@ -430,7 +423,7 @@ code_rel_def
    (rpt gen_tac \\ strip_tac
     \\ rpt gen_tac \\ strip_tac
     \\ `t1.max_app = s1.max_app` by fs [state_rel_def]
-    \\ fs[code_rel_def, remove_dests_def] \\ rveq
+    \\ fs[code_rel_def, remove_dests_def, has_install_cases] \\ rveq
     \\ fs[evaluate_def, EVERY_MAP, LAMBDA_PROD]
     \\ reverse IF_CASES_TAC \\ fs[]
     >- (
@@ -447,10 +440,13 @@ code_rel_def
       \\ irule EVERY2_APPEND_suff \\ fs[]
       \\ fs[LIST_REL_GENLIST]
       \\ fs[LIST_REL_EL_EQN, EL_MAP]
+      \\ fs[has_install_MAP, EXISTS_MEM, MEM_EL, FORALL_PROD]
       \\ fs[SUBSET_DEF] \\ rw[]
       >- (
         pairarg_tac \\ fs[f_rel_def]
-        \\ fs[code_rel_def] )
+        \\ fs[code_rel_def]
+        \\ metis_tac []
+      )
       \\ fs[MEM_GENLIST, PULL_EXISTS]
       \\ rpt(first_x_assum(qspec_then`k`mp_tac))
       \\ rw[] )
@@ -463,16 +459,18 @@ code_rel_def
       \\ irule EVERY2_APPEND_suff \\ fs[]
       \\ fs[LIST_REL_GENLIST]
       \\ fs[LIST_REL_EL_EQN, EL_MAP]
+      \\ fs[has_install_MAP, EXISTS_MEM, MEM_EL, FORALL_PROD]
       \\ fs[SUBSET_DEF] \\ rw[]
       >- (
         pairarg_tac \\ fs[f_rel_def]
-        \\ fs[code_rel_def] )
+        \\ fs[code_rel_def]
+        \\ metis_tac [])
       \\ fs[MEM_GENLIST, PULL_EXISTS]
       \\ rpt(first_x_assum(qspec_then`k`mp_tac))
       \\ rw[] ) )
   \\ conj_tac THEN1 (* App *) (
     rpt gen_tac \\ strip_tac
-    \\ Cases_on`loc_opt` \\ fs[remove_dests_def, code_rel_def, evaluate_def, code_locs_def]
+    \\ Cases_on`loc_opt` \\ fs[remove_dests_def, code_rel_def, evaluate_def, code_locs_def, has_install_cases]
     >- (
       rw[] \\ fs[LENGTH_remove_dests]
       \\ fs[CaseEq"prod"]
@@ -538,14 +536,14 @@ code_rel_def
     \\ fs[domain_lookup]
     \\ res_tac \\ fs[])
   \\ conj_tac THEN1 (* Tick *)
-   (fs [code_rel_def, remove_dests_def, code_locs_def] \\ rveq
+   (fs [code_rel_def, remove_dests_def, code_locs_def, has_install_cases] \\ rveq
     \\ rw [evaluate_def]
     \\ `s1.clock = t1.clock` by fs [state_rel_def]
     \\ fs []
     \\ first_x_assum irule \\ fs []
     \\ fs [dec_clock_def, state_rel_def])
   \\ conj_tac THEN1 (* Call *)
-   (fs [code_rel_def, remove_dests_def, code_locs_def] \\ rveq
+   (fs [code_rel_def, remove_dests_def, code_locs_def, has_install_cases] \\ rveq
     \\ rpt gen_tac \\ strip_tac
     \\ simp [evaluate_def]
     \\ rpt gen_tac \\ strip_tac
@@ -695,30 +693,34 @@ code_rel_def
   \\ imp_res_tac evaluate_code_const \\ fs[dec_clock_def])
 
 Theorem add_code_locs_code_locs
-  `∀ds es. domain (add_code_locs ds es) = domain ds ∪ set (code_locs es)`
-  (recInduct add_code_locs_ind
-  \\ rw[add_code_locs_def, code_locs_def, UNION_ASSOC]
+  `∀ds es. ~ has_install es
+    ==> domain (SND (add_code_locs ds es)) = domain ds ∪ set (code_locs es)`
+  (
+  ho_match_mp_tac add_code_locs_ind
+  \\ rw[add_code_locs_def, code_locs_def]
+  \\ fs[Once has_install_CONS, Once code_locs_cons]
+  \\ fs [has_install_cases, has_install_fold, code_locs_def]
+  \\ fs [AC UNION_COMM UNION_ASSOC]
   >- ( CASE_TAC \\ rw[EXTENSION] \\ metis_tac[] )
-  >- (
-    simp[EXTENSION, domain_list_insert]
+  >- ( simp[EXTENSION, domain_list_insert]
     \\ metis_tac[]));
 
 val code_code_locs_def = Define`
   code_code_locs fm =
     FDOM fm ∪ BIGUNION (IMAGE (λ(_,e). set (code_locs [e])) (FRANGE fm))`;
 
-Theorem remove_dests_correct
+Theorem remove_dests_correct_no_install
   `!xs env1 (s1:('c,'ffi) closSem$state) res1 s2 env2 t1 ds.
        evaluate (xs, env1, s1) = (res1, s2) /\
        LIST_REL (v_rel ds) env1 env2 /\ state_rel ds s1 t1 /\
        code_code_locs s1.code ⊆ domain ds ∧
-       set (code_locs xs) ⊆ domain ds
+       set (code_locs xs) ⊆ domain ds /\ ~ has_install xs
        ==>
        ?res2 t2.
          evaluate (remove_dests ds xs, env2, t1) = (res2, t2) /\
          result_rel (LIST_REL (v_rel ds)) (v_rel ds) res1 res2 /\
          state_rel ds s2 t2`
-  (rpt strip_tac \\ drule (CONJUNCT1 evaluate_remove_dests)
+  (rpt strip_tac \\ drule (CONJUNCT1 evaluate_remove_dests_no_install)
   \\ disch_then drule
   \\ disch_then drule
   \\ fs [code_rel_def, code_code_locs_def]);
@@ -818,6 +820,7 @@ Theorem compile_every_Fn_SOME
   `every_Fn_SOME (MAP (SND o SND) es) ⇒
    every_Fn_SOME (MAP (SND o SND) (clos_labels$compile es))`
   (rw[clos_labelsTheory.compile_def, Once every_Fn_SOME_EVERY]
+  \\ EVERY_CASE_TAC
   \\ fs[Once every_Fn_SOME_EVERY]
   \\ fs[EVERY_MAP, UNCURRY]
   \\ fs[EVERY_MEM] \\ rw[remove_dests_SING]);
@@ -827,6 +830,7 @@ Theorem compile_every_Fn_vs_SOME
    every_Fn_vs_SOME (MAP (SND o SND) (clos_labels$compile es))`
   (rw[Once every_Fn_vs_SOME_EVERY]
   \\ rw[clos_labelsTheory.compile_def]
+  \\ EVERY_CASE_TAC
   \\ rw[Once every_Fn_vs_SOME_EVERY]
   \\ fs[EVERY_MAP, UNCURRY]
   \\ fs[EVERY_MEM, remove_dests_SING]);
@@ -925,10 +929,14 @@ Theorem any_dests_remove_dests
   \\ fs[SUBSET_DEF] \\ metis_tac[]);
 
 Theorem compile_any_dests_SUBSET_code_locs
-  `any_dests (MAP (SND ∘ SND) (compile input)) ⊆
+  `~ has_install (MAP (SND ∘ SND) input) ==>
+  any_dests (MAP (SND ∘ SND) (compile input)) ⊆
     set (MAP FST (compile input)) ∪
     set (code_locs (MAP (SND ∘ SND) (compile input)))`
-  (fs [compile_def] \\ fs [MAP_MAP_o,o_DEF,UNCURRY]
+  (fs [compile_def]
+  \\ EVERY_CASE_TAC
+  \\ fs [PAIR_FST_SND_EQ, has_install_fold] \\ rveq
+  \\ fs [MAP_MAP_o,o_DEF,UNCURRY]
   \\ qmatch_abbrev_tac `any_dests
        (MAP (λx. HD (remove_dests ds [SND (SND x)])) input) ⊆ d`
   \\ `d = domain ds`
@@ -952,6 +960,8 @@ Theorem compile_any_dests_SUBSET_code_locs
 Theorem MAP_FST_compile
   `∀ls. MAP FST (clos_labels$compile ls) = MAP FST ls`
   (Induct
+  \\ rw[clos_labelsTheory.compile_def]
+  \\ EVERY_CASE_TAC
   \\ rw[clos_labelsTheory.compile_def, MAP_MAP_o, o_DEF, UNCURRY]
   \\ srw_tac[ETA_ss][]);
 
@@ -960,6 +970,7 @@ Theorem no_Labels_labs
       EVERY no_Labels (MAP (SND o SND) xs) ==>
       EVERY no_Labels (MAP (SND ∘ SND) (clos_labels$compile xs))`
   (fs [EVERY_MEM,FORALL_PROD,MEM_MAP,PULL_EXISTS,clos_labelsTheory.compile_def]
+  \\ rw [] \\ EVERY_CASE_TAC
   \\ rw [] \\ res_tac \\ fs []
   \\ rename [`(x1,x2,x3)`,`remove_dests ds`] \\ fs []
   \\ qspecl_then [`ds`,`[x3]`] mp_tac remove_dests_no_Labels
