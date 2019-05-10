@@ -53,61 +53,58 @@ val remove_dests_def = tDefine "remove_dests" `
    \\ imp_res_tac exp1_size_lemma
    \\ simp []);
 
-Theorem LENGTH_LE_EXP_SIZE:
-  !xs. LENGTH xs <= closLang$exp3_size xs
-Proof
-  Induct_on `xs` \\ fs [exp_size_def]
-QED
-
-Theorem exp1_size:
-  exp1_size fns = exp3_size (MAP SND fns) + LENGTH fns + list$SUM (MAP FST fns)
-Proof
-  Induct_on `fns` \\ fs [exp_size_def, FORALL_PROD]
-QED
-
 val add_code_locs_def = tDefine "add_code_locs" `
-  (add_code_locs ds [] = (F, ds)) /\
+  (add_code_locs ds [] = ds) /\
   (add_code_locs ds (x::y::xs) =
-     let install_ds = add_code_locs ds [x] in
-       if FST install_ds then (T, fromList [])
-       else add_code_locs (SND install_ds) (y::xs)) /\
-  (add_code_locs ds [Var _ v] = (F, ds)) /\
+     let ds = add_code_locs ds [x] in
+       add_code_locs ds (y::xs)) /\
+  (add_code_locs ds [Var _ v] = ds) /\
   (add_code_locs ds [If _ x1 x2 x3] =
-     add_code_locs ds [x1; x2; x3]) /\
-  (add_code_locs ds [closLang$Let _ xs x2] =
-     add_code_locs ds (x2 :: xs)) /\
+     let ds = add_code_locs ds [x1] in
+     let ds = add_code_locs ds [x2] in
+     let ds = add_code_locs ds [x3] in
+       ds) /\
+  (add_code_locs ds [Let _ xs x2] =
+     let ds = add_code_locs ds xs in
+     let ds = add_code_locs ds [x2] in
+       ds) /\
   (add_code_locs ds [Raise _ x1] =
      add_code_locs ds [x1]) /\
   (add_code_locs ds [Tick _ x1] =
      add_code_locs ds [x1]) /\
   (add_code_locs ds [Op _ op xs] =
-     if op = Install then (T, fromList [])
-     else add_code_locs ds xs) /\
+     add_code_locs ds xs) /\
   (add_code_locs ds [App _ loc_opt x1 xs] =
-     add_code_locs ds (x1 :: xs)) /\
+     let ds = add_code_locs ds [x1] in
+     let ds = add_code_locs ds xs in
+       ds) /\
   (add_code_locs ds [Fn _ loc_opt vs num_args x1] =
      let loc = case loc_opt of NONE => 0 | SOME n => n in
-     add_code_locs (insert loc () ds) [x1]) /\
+     let ds = add_code_locs ds [x1] in
+       insert loc () ds) /\
   (add_code_locs ds [Letrec _ loc_opt vs fns x1] =
      let loc = case loc_opt of NONE => 0 | SOME n => n in
-     let ds = list_insert (GENLIST (λn. loc + 2*n) (LENGTH fns)) ds in
-     add_code_locs ds (x1 :: MAP SND fns)) /\
+     let ds = add_code_locs ds (MAP SND fns) in
+     let ds = add_code_locs ds [x1] in
+       list_insert (GENLIST (λn. loc + 2*n) (LENGTH fns)) ds) /\
   (add_code_locs ds [Handle _ x1 x2] =
-     add_code_locs ds [x1; x2]) /\
+     let ds = add_code_locs ds [x1] in
+     let ds = add_code_locs ds [x2] in
+       ds) /\
   (add_code_locs ds [Call _ ticks dest xs] =
      add_code_locs ds xs)`
-  (WF_REL_TAC `measure ((\exps. (3 * exp3_size exps)
-        - (2 * LENGTH exps)) o SND)`
-  \\ rw [arithmeticTheory.LEFT_ADD_DISTRIB]
-  \\ ASSUME_TAC (SPEC_ALL LENGTH_LE_EXP_SIZE)
-  \\ fs [exp1_size]);
+  (WF_REL_TAC `measure (exp3_size o SND)`
+   \\ REPEAT STRIP_TAC \\ TRY DECIDE_TAC >>
+   Induct_on `fns` >>
+   srw_tac [ARITH_ss] [exp_size_def] >>
+   Cases_on `h` >>
+   full_simp_tac(srw_ss())[exp_size_def] >>
+   decide_tac);
 
 val compile_def = Define`
   compile prog =
     let ds = list_insert (MAP FST prog) LN in
-    case add_code_locs ds (MAP (SND o SND) prog) of
-      (T, ds) => prog
-    | (F, ds) =>
+    let ds = add_code_locs ds (MAP (SND o SND) prog) in
       MAP (λ(n,args,exp). (n, args, HD(remove_dests ds [exp]))) prog`;
 
 Theorem LENGTH_remove_dests
