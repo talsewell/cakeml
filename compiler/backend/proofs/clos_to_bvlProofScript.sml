@@ -5899,21 +5899,11 @@ Theorem ALOOKUP_compile_prog_aux
   \\ metis_tac[IS_SUBLIST_APPEND, APPEND_ASSOC]);
 *)
 
-val compile_common_inc_def = Define`
-  compile_common_inc c cc =
-  ((if c.do_mti then pure_cc (clos_mtiProof$compile_inc c.max_app) else I)
-    (state_cc (ignore_table clos_numberProof$compile_inc)
-      (clos_knownProof$known_cc c.known_conf
-        (state_cc (if c.do_call then clos_callProof$compile_inc else CURRY I)
-          (pure_cc clos_annotateProof$compile_inc
-            (pure_cc clos_labelsProof$compile_inc cc))))))`;
-
 (* TODO: there's lots to move in this file *)
 
 Theorem kcompile_csyntax_ok
-  `clos_callProof$syntax_ok es  ∧
-   clos_known$compile kc es = (x,y)
-  ⇒
+  `clos_known$compile kc es = (x,y) ==>
+  clos_callProof$syntax_ok es ==>
    clos_callProof$syntax_ok y`
   (Cases_on`kc` \\ rw[clos_knownTheory.compile_def] \\ fs[]
   \\ pairarg_tac \\ fs[]
@@ -6220,9 +6210,8 @@ Theorem chain_exps_every_Fn_vs_NONE
   \\ fs [every_Fn_vs_NONE_APPEND]);
 
 Theorem calls_compile_csyntax_ok
-  `clos_callProof$syntax_ok xs /\
-   clos_call$compile p xs = (ys, g, aux)
-   ==>
+  `clos_call$compile p xs = (ys, g, aux) ==>
+   clos_callProof$syntax_ok xs ==>
    every_Fn_vs_NONE ys /\
    every_Fn_vs_NONE (MAP (SND o SND) aux)`
   (Cases_on `p` \\ rw [clos_callTheory.compile_def]
@@ -6319,7 +6308,150 @@ Theorem code_locs_FST_SND_kcompile_inc
   \\ Cases_on`known a b c d`
   \\ simp[]);
 
+Theorem pure_co_I:
+  pure_co I = I
+Proof
+  fs [FUN_EQ_THM, FORALL_PROD] \\ EVAL_TAC \\ fs []
+QED
+
+Theorem pure_cc_I:
+  pure_cc I = I
+Proof
+  fs [FUN_EQ_THM, FORALL_PROD] \\ EVAL_TAC \\ fs []
+QED
+
+val cond_call_compile_inc_def = Define`
+  cond_call_compile_inc do_it = if do_it then clos_callProof$compile_inc
+    else CURRY I`;
+
+val cond_mti_compile_inc_def = Define`
+  cond_mti_compile_inc do_it max_app = if do_it
+    then (clos_mtiProof$compile_inc max_app) else I`;
+
+Theorem every_Fn_vs_NONE_cond_call_compile_inc:
+  (every_Fn_vs_NONE (FST y)
+    ==> every_Fn_vs_NONE (FST (SND (cond_call_compile_inc do_it x y)))) /\
+  (every_Fn_vs_NONE (FST y) /\ every_Fn_vs_NONE (MAP (SND ∘ SND) (SND y))
+    ==> every_Fn_vs_NONE (MAP (SND o SND) (SND (SND (cond_call_compile_inc do_it x y)))))
+Proof
+  Cases_on `y`
+  \\ rw [cond_call_compile_inc_def, clos_callProofTheory.compile_inc_def]
+  \\ (pairarg_tac \\ fs [])
+  \\ imp_res_tac clos_callProofTheory.calls_preserves_every_Fn_vs_NONE
+  \\ fs []
+QED
+
+val compile_common_inc_def = Define`
+  compile_common_inc c cc =
+  (pure_cc (cond_mti_compile_inc c.do_mti c.max_app)
+    (state_cc (ignore_table clos_numberProof$compile_inc)
+      (clos_knownProof$known_cc c.known_conf
+        (state_cc (cond_call_compile_inc c.do_call)
+          (pure_cc clos_annotateProof$compile_inc
+            (pure_cc clos_labelsProof$compile_inc cc))))))`;
+
+Theorem semantics_labels_Call:
+  semantics ffi max_app (alist_to_fmap aux) co
+        (pure_cc clos_labelsProof$compile_inc cc) [Call None i loc []] ≠ Fail ⇒
+    MEM loc (MAP FST aux) ⇒
+    semantics ffi max_app (alist_to_fmap (clos_labels$compile aux))
+        (pure_co clos_labelsProof$compile_inc ∘ co) cc
+        [Call None i loc []] =
+    semantics ffi max_app (alist_to_fmap aux) co
+        (pure_cc clos_labelsProof$compile_inc cc) [Call None i loc []]
+Proof
+  strip_tac
+  \\ drule clos_labelsProofTheory.semantics_compile
+  \\ fs [closPropsTheory.code_locs_def, clos_labelsTheory.remove_dests_def,
+    clos_labelsTheory.add_code_locs_def]
+  \\ CASE_TAC
+  \\ fs [optionTheory.IS_SOME_EXISTS, lookup_NONE_domain, clos_labelsProofTheory.add_code_locs_code_locs, sptreeTheory.domain_list_insert]
+QED
+
+Theorem co_ok_cheat:
+    clos_callProof$co_ok code co full_gs k
+Proof
+    cheat
+QED
+
+Theorem semantics_cond_call_compile_inc:
+    compile do_call es = (es', x, aux) ==>
+    semantics ffi max_app FEMPTY co
+        (state_cc (cond_call_compile_inc do_call) cc) es ≠ Fail /\
+    code = FEMPTY |++ aux /\
+    clos_callProof$syntax_ok es /\
+    (!k. clos_callProof$syntax_ok (FST (SND (co k)))
+        /\ SND (SND (co k)) = []) /\
+    (do_call ==> FST (FST (co 0)) = x /\
+        clos_callProof$extra_code_assum es x co 
+(*        clos_callProof$code_inv NONE FEMPTY
+            (state_cc clos_callProof$compile_inc cc) co code cc
+            (state_co clos_callProof$compile_inc co)
+*)
+)
+==>
+    semantics ffi max_app code
+        (state_co (cond_call_compile_inc do_call) co) cc es' =
+    semantics ffi max_app FEMPTY co
+        (state_cc (cond_call_compile_inc do_call) cc) es
+
+Proof
+  fs [cond_call_compile_inc_def]
+  \\ reverse CASE_TAC
+  >- (
+    rw [clos_callTheory.compile_def]
+    \\ fs [EVAL ``x |++ []``, closPropsTheory.semantics_CURRY_I]
+  )
+  \\ rw []
+  \\ drule (GEN_ALL clos_callProofTheory.semantics_compile)
+  \\ disch_then drule
+  \\ fs []
+  \\ disch_then irule
+  \\ fs [UNCURRY, clos_callProofTheory.code_inv_def,
+    clos_callProofTheory.syntax_ok_def, co_ok_cheat]
+QED
+
+fun expand_tup_def tm = let
+    val x_typ = type_of tm |> dest_type |> snd |> hd
+    val x = mk_var ("x", x_typ)
+    val thm = EVAL ``^tm (FST ^x, SND ^x)``
+  in REWRITE_RULE [pairTheory.PAIR] thm end
+
+Theorem every_Fn_vs_NONE_known_co:
+  (every_Fn_vs_NONE (FST (SND (f n)))
+    /\ clos_knownProof$globals_approx_every_Fn_vs_NONE (FST (FST (f n))) ==>
+      every_Fn_vs_NONE (FST (SND (clos_knownProof$known_co conf f n)))) /\
+  (every_Fn_vs_NONE (MAP (SND ∘ SND) (SND (SND (f n)))) ==>
+      every_Fn_vs_NONE (MAP (SND ∘ SND)
+          (SND (SND (clos_knownProof$known_co conf f n)))))
+Proof
+  fs [clos_knownProofTheory.known_co_def]
+  \\ CASE_TAC \\ fs [backendPropsTheory.SND_state_co]
+  \\ fs (map expand_tup_def [``clos_letopProof$compile_inc``,
+    ``clos_ticksProof$compile_inc``,
+    ``clos_fvsProof$compile_inc``])
+  \\ fs [clos_knownProofTheory.compile_inc_def]
+  \\ fs [ UNCURRY ]
+  \\ fs [ clos_knownProofTheory.known_every_Fn_vs_NONE ]
+QED
+
+Theorem alist_to_fmap_FEMPTY:
+  ALL_DISTINCT (MAP FST xs) ==> alist_to_fmap xs = FEMPTY |++ xs
+Proof
+
+QED
+
+
+val c0 = ``Call None 0 loc []``;
+
+Theorem obvious_12
+  `((a : num) = b + a) = (b = 0)`
+  (Cases_on `b` \\ fs []);
+
+
+
 Theorem compile_common_semantics
+
   `closSem$semantics (ffi:'ffi ffi_state) c.max_app FEMPTY co1
     (compile_common_inc c cc) es1 ≠ Fail ∧
    compile_common c es1 = (c', code2) ∧
@@ -6375,16 +6507,73 @@ Theorem compile_common_semantics
      clos_knownProof$globals_approx_every_Fn_SOME (FST (SND (FST (co1 n))))
      )
    ⇒
+
+
+`
+   compile_common c es1 = (c', code2) /\
+   every_Fn_vs_NONE es1 /\
+   T ==>
    closSem$semantics ffi c.max_app (alist_to_fmap code2)
      (pure_co clos_labelsProof$compile_inc o
       pure_co clos_annotateProof$compile_inc o
-       state_co (if c.do_call then clos_callProof$compile_inc else CURRY I)
+       state_co (cond_call_compile_inc c.do_call)
        (clos_knownProof$known_co c.known_conf
            (state_co (ignore_table clos_numberProof$compile_inc)
-             ((if c.do_mti then pure_co (clos_mtiProof$compile_inc c.max_app) else I) o co1))))
+             (pure_co (cond_mti_compile_inc c.do_mti c.max_app) o co1))))
      cc ([Call None 0 c'.start []]) =
    closSem$semantics ffi c.max_app FEMPTY co1 (compile_common_inc c cc) es1`
-  (simp[compile_common_def]
+
+  (
+
+
+rpt strip_tac
+\\ fs [compile_common_def]
+\\ rpt (pairarg_tac \\ fs [])
+\\ rveq \\ fs []
+\\ DEP_REWRITE_TAC [IRULE_CANON semantics_labels_Call]
+\\ DEP_REWRITE_TAC [ IRULE_CANON (
+clos_annotateProofTheory.semantics_annotate |> Q.GEN `xs`
+  |> SPEC ``[^c0]``
+  |> REWRITE_RULE [EVAL ``annotate 0 [^c0]``]
+) ]
+\\ fs [chain_exps_every_Fn_vs_NONE, backendPropsTheory.SND_state_co,
+    MAP_FST_chain_exps_any, MEM_MAP, obvious_12, rich_listTheory.MEM_COUNT_LIST]
+\\ ConseqConv.CONSEQ_REWRITE_TAC ([every_Fn_vs_NONE_cond_call_compile_inc,
+    every_Fn_vs_NONE_known_co], [], [])
+\\ fs [backendPropsTheory.FST_state_co, backendPropsTheory.SND_state_co,
+    SND_SND_ignore_table, FST_SND_ignore_table]
+\\ drule kcompile_csyntax_ok
+\\ impl_keep_tac
+>- (
+drule renumber_code_locs_list_csyntax_ok
+\\ (impl_keep_tac \\ fs [])
+)
+\\ rpt disch_tac
+\\ imp_res_tac calls_compile_csyntax_ok
+\\ fs []
+\\ csimp []
+
+\\ DEP_REWRITE_TAC [chain_exps_semantics_call]
+
+\\ drule (GEN_ALL semantics_cond_call_compile_inc)
+\\ disch_then (fn t => DEP_REWRITE_TAC [t])
+\\ csimp []
+
+
+
+val t = 
+``every_Fn_vs_NONE
+           (FST
+              (SND
+                 (state_co (cond_call_compile_inc c.do_call)
+                    (clos_knownProof$known_co c.known_conf
+                       (state_co (ignore_table clos_numberProof$compile_inc)
+                          (pure_co (cond_mti_compile_inc c.do_mti c.max_app) ∘
+                           co1))) n)))``
+
+
+
+simp[compile_common_def]
   \\ rpt(pairarg_tac \\ fs[])
   \\ qmatch_asmsub_rename_tac`renumber_code_locs_list _ _ = (k,_)`
   \\ qmatch_asmsub_abbrev_tac`renumber_code_locs_list n`
