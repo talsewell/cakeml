@@ -6411,6 +6411,26 @@ Proof
     clos_callProofTheory.syntax_ok_def, co_ok_cheat]
 QED
 
+Theorem semantics_cond_mti_compile_inc:
+    semantics ffi max_app FEMPTY co
+        (pure_cc (cond_mti_compile_inc do_mti max_app) cc) xs ≠ Fail ∧
+    (do_mti ⇒
+         (∀n. SND (SND (co n)) = [] ∧
+             clos_mtiProof$syntax_ok (FST (SND (co n)))) ∧
+             1 <= max_app ∧ clos_mtiProof$syntax_ok xs) ⇒
+     semantics ffi max_app FEMPTY
+         (pure_co (cond_mti_compile_inc do_mti max_app) o co) cc
+         (compile do_mti max_app xs) =
+     semantics ffi max_app FEMPTY co
+         (pure_cc (cond_mti_compile_inc do_mti max_app) cc) xs
+Proof
+  rw []
+  \\ irule (GEN_ALL clos_mtiProofTheory.semantics_compile)
+  \\ fs [cond_mti_compile_inc_def]
+  \\ CASE_TAC
+  \\ fs [pure_cc_I, pure_co_I]
+QED
+
 fun expand_tup_def tm = let
     val x_typ = type_of tm |> dest_type |> snd |> hd
     val x = mk_var ("x", x_typ)
@@ -6438,9 +6458,9 @@ QED
 Theorem alist_to_fmap_FEMPTY:
   ALL_DISTINCT (MAP FST xs) ==> alist_to_fmap xs = FEMPTY |++ xs
 Proof
-
+  fs [miscTheory.FUPDATE_LIST_alist_to_fmap,
+    miscTheory.ALL_DISTINCT_alist_to_fmap_REVERSE]
 QED
-
 
 val c0 = ``Call None 0 loc []``;
 
@@ -6448,7 +6468,37 @@ Theorem obvious_12
   `((a : num) = b + a) = (b = 0)`
   (Cases_on `b` \\ fs []);
 
+(* TS: I want to investigate whether the semantics can be tweaked to avoid
+   this extra assumption *)
+Theorem cheat_extra_code_assum:
+  clos_callProof$extra_code_assum x y z
+Proof
+  cheat
+QED
 
+Theorem SND_SND_known_compile_inc:
+  SND (SND (clos_knownProof$compile_inc conf app es)) = SND es
+Proof
+  Cases_on `es` \\ EVAL_TAC \\ fs [UNCURRY]
+QED
+
+fun promote_bool pat thm = let
+    val term = find_term (can (match_term pat)) (concl thm)
+  in REWRITE_RULE [ASSUME term] thm |> DISCH_ALL end
+
+val semantics_kcompile = clos_knownProofTheory.semantics_compile
+  |> promote_bool ``_ = clos_knownProof$known_cc _ _``
+  |> promote_bool ``_ = clos_knownProof$known_co _ _``
+  |> promote_bool ``clos_known$compile _ _ = _``;
+
+val ok_renumber = syntax_oracle_ok_renumber_code_locs
+  |> promote_bool ``renumber_code_locs_list _ _ = _``;
+
+fun subgoal_pat pat (asl, goal) = let
+    val ts = find_terms (can (match_term pat)) goal
+  in ADD_SGS_TAC ts (REWRITE_TAC (map ASSUME ts)) (asl, goal) end
+
+val qsubgoal_pat = QTY_TAC Type.bool subgoal_pat
 
 Theorem compile_common_semantics
 
@@ -6507,12 +6557,6 @@ Theorem compile_common_semantics
      clos_knownProof$globals_approx_every_Fn_SOME (FST (SND (FST (co1 n))))
      )
    ⇒
-
-
-`
-   compile_common c es1 = (c', code2) /\
-   every_Fn_vs_NONE es1 /\
-   T ==>
    closSem$semantics ffi c.max_app (alist_to_fmap code2)
      (pure_co clos_labelsProof$compile_inc o
       pure_co clos_annotateProof$compile_inc o
@@ -6546,46 +6590,126 @@ clos_annotateProofTheory.semantics_annotate |> Q.GEN `xs`
 \\ impl_keep_tac
 >- (
 drule renumber_code_locs_list_csyntax_ok
-\\ (impl_keep_tac \\ fs [])
+\\ impl_keep_tac \\ fs [clos_knownProofTheory.syntax_ok_def]
 )
 \\ rpt disch_tac
 \\ imp_res_tac calls_compile_csyntax_ok
 \\ fs []
 \\ csimp []
-
 \\ DEP_REWRITE_TAC [chain_exps_semantics_call]
-
-\\ drule (GEN_ALL semantics_cond_call_compile_inc)
-\\ disch_then (fn t => DEP_REWRITE_TAC [t])
+\\ DEP_REWRITE_TAC [IRULE_CANON (Q.INST [`es'` |-> `es''`, `es` |-> `es'`] semantics_cond_call_compile_inc)]
+\\ fs []
+\\ csimp []
+\\ FIRST_ASSUM (fn t => DEP_REWRITE_TAC [IRULE_CANON (MATCH_MP semantics_kcompile t)])
+\\ fs []
+\\ FIRST_ASSUM (fn t => ConseqConv.CONSEQ_REWRITE_TAC
+  ([IRULE_CANON (MATCH_MP ok_renumber t)], [], []))
+\\ fs [backendPropsTheory.FST_state_co]
+\\ csimp []
+\\ drule (Q.prove (`renumber_code_locs_list n xs = (m, ys)
+    ==> ys = SND (renumber_code_locs_list n xs)`, fs[]))
+\\ disch_then (fn t => simp_tac bool_ss [t])
+\\ DEP_REWRITE_TAC [IRULE_CANON clos_numberProofTheory.semantics_number]
+\\ DEP_REWRITE_TAC [IRULE_CANON semantics_cond_mti_compile_inc]
+\\ fs [compile_common_inc_def]
 \\ csimp []
 
+(* down to syntactic conditions *)
+
+MARK
+
+qsubgoal_pat `IS_SOME _ ==> _`
+>- (
+  rpt disch_tac
+  \\ fs [optionTheory.IS_SOME_EXISTS]
+  \\ rfs []
+  \\ fs []
+  \\ fs [clos_knownTheory.compile_def]
+  \\ pairarg_tac \\ fs[]
+  \\ rveq \\ fs []
+  \\ fs [compile_elist_globals]
+
+      \\ simp[make_even_def,EVEN_MOD2] )
+    \\ fs[Abbr`n'`,Abbr`n`] \\ rfs[] \\ fs[]
+    \\ reverse conj_tac >- rw[]
+    \\ match_mp_tac (GEN_ALL syntax_oracle_ok_renumber_code_locs)
+    \\ asm_exists_tac \\ fs[]
+    \\ conj_tac >- ( match_mp_tac ksyntax_ok_compile_mti \\ fs[] )
+    \\ conj_tac
+    >- (
+      reverse(rw[])
+      >- (
+        fs[clos_knownProofTheory.co_every_Fn_vs_NONE_def]
+        \\ qx_gen_tac`m`
+        \\ rpt gen_tac \\ strip_tac
+        \\ first_x_assum(qspec_then`m`mp_tac)
+        \\ fs[clos_knownProofTheory.syntax_ok_def])
+      \\ simp[clos_knownProofTheory.co_every_Fn_vs_NONE_def]
+      \\ qx_gen_tac`m`
+      \\ Cases_on`co1 m`
+      \\ Cases_on`r`
+      \\ simp[clos_mtiProofTheory.compile_inc_def]
+      \\ first_x_assum(qspec_then`m`mp_tac)
+      \\ fs[clos_knownProofTheory.syntax_ok_def] )
+    \\ conj_tac >- simp[compile_elist_globals]
+    \\ qx_gen_tac`m`
+    \\ conj_tac >- rw[]
+    \\ conj_tac >- (
+      rw[]
+      \\ Cases_on(`SND (co1 m)`)
+      \\ rw[clos_mtiProofTheory.compile_inc_def]
+      \\ match_mp_tac ksyntax_ok_intro_multi
+      \\ first_x_assum(qspec_then`m`mp_tac)
+      \\ simp[] )
+    \\ conj_tac >- rw[]
+    \\ conj_tac >- rw[]
+    \\ conj_tac
+    >- (
+      fs[IS_SOME_EXISTS] \\ fs[clos_knownTheory.compile_def]
+      \\ pairarg_tac \\ fs[]
+      \\ rveq \\ fs[]
+      \\ imp_res_tac clos_knownProofTheory.known_changed_globals_alt_set
+      \\ fs[clos_fvsTheory.compile_def]
+      \\ rw[] \\ fs[o_DEF, mcompile_inc_uncurry,clos_mtiProofTheory.intro_multi_preserves_elist_globals]
+      \\ fs[SUBSET_DEF,IN_DISJOINT]
+      \\ CCONTR_TAC \\ fs[]
+      \\ first_x_assum drule
+      \\ imp_res_tac clos_numberProofTheory.renumber_code_locs_elist_globals
+      \\ fs[clos_mtiTheory.compile_def, clos_mtiProofTheory.intro_multi_preserves_elist_globals]
+      \\ fs[BAG_DISJOINT, IN_DISJOINT]
+      \\ metis_tac[])
+    \\ conj_tac >- (
+      rw[]
+      \\ fs[o_DEF, mcompile_inc_uncurry, elist_globals_FLAT]
+      \\ fs[BAG_ALL_DISTINCT_FOLDR_BAG_UNION, MAP_GENLIST]
+      \\ fs[clos_mtiProofTheory.intro_multi_preserves_elist_globals]
+      \\ metis_tac[] )
+    >- (
+      rw[clos_mtiTheory.compile_def, clos_mtiProofTheory.intro_multi_preserves_elist_globals]
+      \\ fs[o_DEF, mcompile_inc_uncurry]
+      \\ fs[clos_mtiProofTheory.intro_multi_preserves_elist_globals]))
+ 
 
 
-val t = 
-``every_Fn_vs_NONE
-           (FST
-              (SND
-                 (state_co (cond_call_compile_inc c.do_call)
-                    (clos_knownProof$known_co c.known_conf
-                       (state_co (ignore_table clos_numberProof$compile_inc)
-                          (pure_co (cond_mti_compile_inc c.do_mti c.max_app) ∘
-                           co1))) n)))``
+\\ drule (REWRITE_RULE [ASSUME ``renumber_code_locs_list n xs = r``]
+    clos_numberProofTheory.semantics_number |> DISCH_ALL |> IRULE_CANON)
+\\ fs []
+
+\\ DEP_REWRITE_TAC [REWRITE_RULE [ASSUME ``renumber_code_locs_list n xs = (m, ys)``, SND]
+   clos_numberProofTheory.semantics_number |> DISCH_ALL |> IRULE_CANON]
 
 
 
-simp[compile_common_def]
-  \\ rpt(pairarg_tac \\ fs[])
   \\ qmatch_asmsub_rename_tac`renumber_code_locs_list _ _ = (k,_)`
   \\ qmatch_asmsub_abbrev_tac`renumber_code_locs_list n`
-  \\ strip_tac \\ rveq
-  \\ drule (GEN_ALL clos_mtiProofTheory.semantics_compile)
-  \\ disch_then(qspec_then`c.do_mti`mp_tac) \\ fs[]
-  \\ simp[Once compile_common_inc_def]
-  \\ qmatch_goalsub_abbrev_tac`(_ ccc = _)`
-  \\ disch_then(qspec_then`ccc`mp_tac) \\ fs[]
-  \\ disch_then(assume_tac o SYM) \\ fs[]
-  \\ qunabbrev_tac`ccc`
+  \\ rveq
+
+
   \\ fs[compile_common_inc_def]
+  \\ drule (GEN_ALL semantics_cond_mti_compile_inc)
+  \\ fs []
+  \\ disch_then kall_tac
+
   \\ drule clos_numberProofTheory.semantics_number
   \\ fs[]
   (*
