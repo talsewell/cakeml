@@ -2849,7 +2849,7 @@ Proof
       THEN1
        (rveq \\ fs []
         \\ asm_exists_tac \\ fs []
-	\\ mp_tac (Q.GENL [`v`,`t`] do_app_thm) \\ fs []
+        \\ mp_tac (Q.GENL [`v`,`t`] do_app_thm) \\ fs []
         \\ Cases_on `e` \\ fs [] \\ strip_tac \\ rveq \\ fs []
         \\ rename [`_ = Rerr (Rabort aa)`] \\ Cases_on `aa` \\ fs []
         \\ fs[] \\ rw[]
@@ -2907,8 +2907,8 @@ Q.INST [`b`|->`DISJOINT (S1 : 'c set) S2 /\ P`] bool_case_eq,
                code := r.code |>)` by fs [wfv_state_def,shift_seq_def]
         \\ fs [shift_seq_def,FUPDATE_LIST]
         \\ match_mp_tac (GEN_ALL wfv_state_subg)
-	\\ asm_exists_tac
-	\\ fs [GSYM FUPDATE_LIST])
+        \\ asm_exists_tac
+        \\ fs [GSYM FUPDATE_LIST])
       \\ fs [do_install_def]
       \\ fs [shift_seq_def]
       \\ `t.clock = 0` by fs [state_rel_def] \\ fs []
