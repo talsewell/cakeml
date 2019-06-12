@@ -3303,7 +3303,6 @@ Q.INST [`b`|->`DISJOINT (S1 : 'c set) S2 /\ P`] bool_case_eq,
     \\ rpt strip_tac
     \\ imp_res_tac state_rel_max_app
     \\ FULL_CASE_TAC \\ fs[])
-
   (* App *)
   \\ conj_tac >- (
     say "App"
@@ -3721,12 +3720,8 @@ Q.INST [`b`|->`DISJOINT (S1 : 'c set) S2 /\ P`] bool_case_eq,
     \\ fs [TAKE_APPEND1]
     \\ rpt (conj_tac >- fs [subg_def, subspt_def, SUBSET_DEF])
     \\ fs [CaseEq "result", list_case_eq] \\ rveq \\ fs [] )
-
   (* Tick *)
   \\ conj_tac >- (
-
-(* saved *)
-
     say "Tick"
     \\ fs [evaluate_def,calls_def] \\ rpt strip_tac
     \\ Cases_on `s.clock = 0` \\ fs [] THEN1
@@ -3737,7 +3732,6 @@ Q.INST [`b`|->`DISJOINT (S1 : 'c set) S2 /\ P`] bool_case_eq,
       \\ `[HD e1] = e1` by (imp_res_tac calls_sing \\ fs [])
       \\ qexists_tac `0` \\ fs [state_rel_def,PULL_EXISTS]
       \\ asm_exists_tac \\ fs [wfg_subg_refl])
-
     \\ pairarg_tac \\ fs [] \\ rw []
     \\ fs [dec_clock_def]
     \\ first_x_assum drule \\ fs [code_locs_def]
@@ -3765,12 +3759,8 @@ Q.INST [`b`|->`DISJOINT (S1 : 'c set) S2 /\ P`] bool_case_eq,
     \\ fs []
     \\ rw []
     \\ asm_exists_tac \\ fs [])
-
   (* Call *)
   \\ conj_tac >- (
-
-(* saved *)
-
     say "Call"
     \\ rw[evaluate_def,calls_def,code_locs_def,ALL_DISTINCT_APPEND]
     \\ pairarg_tac \\ fs[]
@@ -3798,9 +3788,6 @@ Q.INST [`b`|->`DISJOINT (S1 : 'c set) S2 /\ P`] bool_case_eq,
                    \\ asm_exists_tac
                    \\ rw[wfg_subg_refl])
   (* app cons *)
-
-  (* saved *)
-
   \\ say "evaluate_app_CONS"
   \\ simp[evaluate_def]
   \\ rpt gen_tac \\ strip_tac
@@ -3830,7 +3817,6 @@ Q.INST [`b`|->`DISJOINT (S1 : 'c set) S2 /\ P`] bool_case_eq,
     \\ imp_res_tac LIST_REL_LENGTH
     \\ rw[] \\ fs[] \\ rw[dec_clock_def] \\ fs [Abbr`t1`,dec_clock_def]
     \\ fs [state_rel_def, wfv_state_def, wfg_subg_refl])
-
   \\ fs[PULL_EXISTS]
   \\ rpt gen_tac \\ strip_tac
   \\ simp[RIGHT_EXISTS_AND_THM,RIGHT_EXISTS_IMP_THM]
@@ -3862,9 +3848,43 @@ Q.INST [`b`|->`DISJOINT (S1 : 'c set) S2 /\ P`] bool_case_eq,
   \\ simp[evaluate_app_rw]
   \\ imp_res_tac state_rel_max_app \\ fs[]
   \\ qpat_x_assum`_ = (res,_)`mp_tac
-
   \\ reverse (BasicProvers.TOP_CASE_TAC \\ fs[])
-
+(* attempt to factor some stuff out
+  \\ drule (GEN_ALL recclosure_rel_EL_i)
+  \\ rpt (disch_then drule)
+  \\ rw []
+  \\ rename [`evaluate ([f_e], args, _) = (f_res, s')`]
+  \\ `f_res <> Rerr (Rabort Rtype_error)` by
+    (CCONTR_TAC \\ rw [] \\ rveq \\ fs [])
+  \\ first_x_assum drule
+  \\ disch_then drule
+  \\ fs []
+  \\ rename [`env_rel _ args args2 0 [_]`]
+  \\ rename [`evaluate (_, _, dec_clock (SUC (LENGTH xs) - LENGTH res) _) = _`]
+  \\ disch_then (qspec_then `args2` mp_tac)
+  \\ disch_then (qspec_then `dec_clock (SUC (LENGTH xs) - LENGTH res) t0` mp_tac)
+  \\ simp[EVAL``(closSem$dec_clock _ _).code``]
+  \\ disch_then drule
+  \\ impl_tac >- fs [wfv_state_def, dec_clock_def, state_rel_def]
+  \\ strip_tac
+(* idea for how to continue
+  \\ first_x_assum drule
+*)
+  \\ reverse (fs [CaseEq "result"] \\ rveq \\ fs [])
+  >- (
+    rveq
+    \\ fs [dec_clock_def]
+    \\ imp_res_tac state_rel_clock
+    \\ imp_res_tac LIST_REL_LENGTH
+    \\ fs []
+    \\ qexists_tac `ck` \\ fs[]
+    \\ asm_exists_tac \\ fs []
+    \\ rpt (qpat_x_assum `evaluate _ = _` mp_tac)
+    \\ fs [arithmeticTheory.LESS_EQ_ADD_SUB]
+  )
+  \\ fs []
+  \\ rveq \\ fs []
+  need to unpack evaluate_app, I think *)
   \\ imp_res_tac evaluate_length_imp
   \\ fs[quantHeuristicsTheory.LIST_LENGTH_2]
   \\ rw []
@@ -3874,15 +3894,12 @@ Q.INST [`b`|->`DISJOINT (S1 : 'c set) S2 /\ P`] bool_case_eq,
   \\ rpt(pairarg_tac \\ fs[])
   \\ qmatch_assum_rename_tac`v_rel g1 l1 _ f f'`
   \\ qmatch_assum_rename_tac`LIST_REL _ rest1 rest2`
-
-
   \\ first_x_assum(qspecl_then[`g1`,`l1`]mp_tac o
         CONV_RULE(RESORT_FORALL_CONV List.rev))
   \\ `EVERY (wfv g1 l1 t0.code) args /\ EVERY (wfv g1 l1 t0.code) rest1` by
    (last_assum (mp_then (Pos hd) mp_tac (GEN_ALL dest_closure_full_wfv))
     \\ disch_then drule \\ impl_tac THEN1 fs [] \\ rw [] \\ fs [])
-
-(* FIXME: is this really necessary? it just pulls out some trivia *)
+  (* FIXME: is this really necessary? it just pulls out some trivia *)
   \\ ((fn g as (asl,w) =>
       let
         val (fa,_) = dest_imp w
@@ -3904,7 +3921,6 @@ Q.INST [`b`|->`DISJOINT (S1 : 'c set) S2 /\ P`] bool_case_eq,
     \\ rpt(first_x_assum drule) \\ simp[]
     \\ fs[wfv_state_def,dec_clock_def]
     \\ imp_res_tac ALL_DISTINCT_FLAT_EVERY))
-
   \\ simp[]
   \\ qmatch_asmsub_abbrev_tac`COND b`
   \\ rveq \\ fs []
@@ -3934,8 +3950,7 @@ Q.INST [`b`|->`DISJOINT (S1 : 'c set) S2 /\ P`] bool_case_eq,
     \\ simp[] \\ fs[]
     \\ fs[LIST_REL_EL_EQN]
     \\ rfs[EL_TAKE])
-
-  \\ reverse(Cases_on`b`) \\ fs[] \\ rveq >- (
+  \\ (reverse(Cases_on`b`) \\ fs[] \\ rveq >- (
     rveq \\ drule (GEN_ALL calls_el_sing)
     \\ disch_then (qspec_then`i`mp_tac)
     \\ impl_tac >- fs[wfg_def,recclosure_wf_def]
@@ -3961,43 +3976,32 @@ Q.INST [`b`|->`DISJOINT (S1 : 'c set) S2 /\ P`] bool_case_eq,
     \\ imp_res_tac state_rel_max_app \\ fs[]
     \\ imp_res_tac LIST_REL_LENGTH \\ fs[]
     \\ rfs[EL_ZIP]
-    \\ asm_exists_tac
-    \\ fs []
-    \\ TRY (qexists_tac`ck` \\ simp[] \\ rfs[] \\ NO_TAC)
-
-(*
+    \\ TRY (qexists_tac`ck` \\ asm_exists_tac \\ simp[] \\ rfs[] \\ NO_TAC)
     \\ first_x_assum drule
-    \\ `EVERY (wfv g1 l1 t.code) rest1` by
-      (match_mp_tac (GEN_ALL EVERY_wfv_SUBMAP) \\ asm_exists_tac
+    \\ fs []
+    \\ `EVERY (wfv g2 l2 t.code) rest1` by
+      (match_mp_tac (GEN_ALL EVERY_wfv_subg) \\ asm_exists_tac
        \\ imp_res_tac evaluate_mono \\ fs [])
-    \\ `wfv_state g1 l1 t.code r` by
-      (match_mp_tac (GEN_ALL wfv_state_SUBMAP) \\ asm_exists_tac
-       \\ imp_res_tac evaluate_mono \\ fs [])
-    \\ `LIST_REL (v_rel g1 l1 t.code) rest1 rest2` by
-      (match_mp_tac (GEN_ALL LIST_REL_v_rel_SUBMAP) \\ asm_exists_tac
+    \\ `LIST_REL (v_rel g2 l2 t.code) rest1 rest2` by
+      (match_mp_tac (GEN_ALL LIST_REL_v_rel_subg) \\ asm_exists_tac
        \\ imp_res_tac evaluate_mono \\ fs [])
     \\ rpt (disch_then (first_assum o mp_then Any mp_tac))
     \\ rw [] \\ fs []
-    \\ rpt (goal_assum (first_assum o mp_then Any mp_tac)) \\ fs []
+    \\ asm_exists_tac \\ fs []
     \\ drule evaluate_add_clock
     \\ disch_then (qspec_then `ck'` mp_tac)
     \\ fs [] \\ rw []
-    \\ qexists_tac `ck+ck'` \\ fs []
-*)
-)
-
+    \\ qexists_tac `ck+ck'` \\ fs [subg_def, subspt_def, SUBSET_DEF]))
   \\ imp_res_tac state_rel_max_app \\ fs[]
   \\ REWRITE_TAC[calls_list_MAPi]
   \\ simp[]
   \\ simp[evaluate_def,evaluate_GENLIST_Var_tra]
   \\ simp[find_code_def]
-
   \\ `n ≤ LENGTH args2`
   by (
     qpat_x_assum`_ ≤ LENGTH args2`mp_tac
     \\ IF_CASES_TAC \\ fs[] )
   \\ simp[EVAL``(closSem$dec_clock _ _).code``]
-
   \\ qmatch_assum_abbrev_tac`subg gd g1`
   \\ qpat_x_assum `code_includes (SND gd) t0.code` assume_tac
   \\ pop_assum mp_tac
@@ -4167,38 +4171,87 @@ Q.INST [`b`|->`DISJOINT (S1 : 'c set) S2 /\ P`] bool_case_eq,
   \\ qunabbrev_tac`dk'` \\ fs[]
   \\ imp_res_tac state_rel_clock
   \\ `∀ck. ¬(SUC ck + t0.clock ≤ dk)` by simp[]
-
-
   \\ TRY (
-drule evaluate_add_clock \\ fs[]
+    drule evaluate_add_clock \\ fs[]
           \\ disch_then(qspec_then`ck'`assume_tac)
           \\ qexists_tac`ck+1` \\ simp[]
           \\ `ck + (t0.clock − dk) = ck + t0.clock − dk` by decide_tac
-\\ fs []
-\\ asm_exists_tac
-\\ fs []
-          \\ fs [] \\ NO_TAC
-
-)
-
+	  \\ fs []
+	  \\ asm_exists_tac
+          \\ fs [] \\ NO_TAC)
   \\ first_x_assum drule
-  \\ `EVERY (wfv g1 l1 t.code) rest1` by
-    (match_mp_tac (GEN_ALL EVERY_wfv_SUBMAP) \\ asm_exists_tac \\ fs []
+  \\ fs []
+  \\ `EVERY (wfv g2 l2 t.code) rest1` by
+    (match_mp_tac (GEN_ALL EVERY_wfv_subg) \\ asm_exists_tac \\ fs []
      \\ imp_res_tac evaluate_mono \\ fs [])
-  \\ `LIST_REL (v_rel g1 l1 t.code) rest1 rest2` by
-    (match_mp_tac (GEN_ALL LIST_REL_v_rel_SUBMAP) \\ asm_exists_tac \\ fs []
+  \\ `LIST_REL (v_rel g2 l2 t.code) rest1 rest2` by
+    (match_mp_tac (GEN_ALL LIST_REL_v_rel_subg) \\ asm_exists_tac \\ fs []
      \\ imp_res_tac evaluate_mono \\ fs [])
   \\ rpt (disch_then drule) \\ fs []
   \\ rw [] \\ fs [ADD1]
-  \\ rpt (goal_assum (first_x_assum o mp_then Any mp_tac))
+  \\ asm_exists_tac \\ fs []
   \\ qexists_tac`ck+ck'+1` \\ simp[]
   \\ drule evaluate_add_clock \\ fs[]
   \\ disch_then(qspec_then`ck'`assume_tac) \\ fs []
   \\ qmatch_assum_abbrev_tac `closSem$evaluate (_,_,(_ with clock := ck11)) = _`
   \\ qmatch_goalsub_abbrev_tac `_ with clock := ck22`
   \\ qsuff_tac `ck11 = ck22` \\ rw [] \\ fs []
-  \\ unabbrev_all_tac \\ fs []
+  \\ unabbrev_all_tac
+  \\ fs [subg_def, subspt_def, SUBSET_DEF]
 QED
+
+(*
+Theorem recclosure_rel_EL_i:
+
+  recclosure_rel g1 l1 s_code loc fns fns' /\ EL i fns = (n, exp) /\
+    dest_closure ma loco f (x::xs) = SOME (Full_app exp args rest) /\
+    v_rel g1 l1 t_code f f' /\
+    dest_closure ma loco f' (y::ys) = SOME (Full_app exp' args2 rest2) /\
+    exp' = SND (EL i fns') ==>
+  ?g0 g. calls [exp] g0 = ([exp'], g) ∧
+    every_Fn_SOME [exp] ∧ every_Fn_vs_NONE [exp] ∧
+    wfg g0 ∧ subg g g1 ∧ ALL_DISTINCT (code_locs [exp]) ∧
+    DISJOINT (IMAGE SUC (set (code_locs [exp])))
+        (set (MAP FST (SND g0))) ∧
+    set (code_locs [exp]) DIFF domain (FST g) ⊆ l1 ∧
+    env_rel (v_rel g1 l1 t_code) args args2 0 [(0, exp')] ∧
+    EVERY (wfv g1 l1 t_code) args ∧
+    code_includes (SND g) t_code
+
+Proof
+
+  fs[recclosure_rel_def]
+  \\ rw []
+  \\ rpt(pairarg_tac \\ fs[])
+  \\ imp_res_tac calls_length \\ fs[]
+
+  \\ `env_rel (v_rel g1 l1 t_code) args args2 0 [(0, SND (EL i fns'))]`
+  by (
+    qhdtm_x_assum`env_rel`mp_tac
+    \\ `n = FST (EL i fns2)`
+    by ( Cases_on`b` \\ fs[calls_list_MAPi,EL_ZIP,EL_MAP] )
+    \\ reverse IF_CASES_TAC \\ fs[]
+    >- (
+      strip_tac
+      \\ match_mp_tac env_rel_DROP_args
+      \\ simp[] \\ fs[]
+      \\ qpat_x_assum `EL i fns1 = _` (assume_tac o GSYM) \\ fs [])
+    \\ qpat_x_assum `EL i fns1 = _` (assume_tac o GSYM) \\ fs []
+    \\ ONCE_REWRITE_TAC[ADD_COMM]
+    \\ simp[GSYM DROP_DROP]
+    \\ strip_tac \\ drule env_rel_DROP
+    \\ impl_tac
+    >- (
+      simp[]
+      \\ fs[LIST_REL_EL_EQN]
+      \\ rfs[EL_TAKE,EL_DROP] )
+    \\ strip_tac
+    \\ match_mp_tac env_rel_DROP_args
+    \\ simp[] \\ fs[]
+    \\ fs[LIST_REL_EL_EQN]
+    \\ rfs[EL_TAKE])
+QED
+*)
 
 val code_locs_calls_list = Q.prove(`
   ∀ls n tr i. code_locs (MAP SND (calls_list tr i n ls)) = []`,
