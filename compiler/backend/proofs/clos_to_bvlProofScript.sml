@@ -7698,6 +7698,14 @@ Proof
   Cases_on `prog` \\ fs [clos_annotateProofTheory.compile_inc_def]
 QED
 
+Theorem LENGTH_FST_cond_mti_compile_inc:
+  LENGTH (FST (cond_mti_compile_inc do_it ma prog)) = LENGTH (FST prog)
+Proof
+  fs [cond_mti_compile_inc_def]
+  \\ CASE_TAC \\ fs []
+  \\ fs [mcompile_inc_uncurry, clos_mtiTheory.intro_multi_length]
+QED
+
 fun abbrev_adj_tac f = first_assum (fn t => if not
     (markerSyntax.is_abbrev (concl t)) then NO_TAC else
   let
@@ -7709,10 +7717,12 @@ fun abbrev_adj_tac f = first_assum (fn t => if not
     val v2 = mk_var (v_nm ^ "'", type_of x)
   in markerLib.ABBREV_TAC (mk_eq (v2, x)) \\ markerLib.UNABBREV_TAC v_nm end)
 
+
 Theorem syntax_oracle_ok_to_oracle_inv:
 
-  ∀cc es co c. syntax_oracle_ok c es co
-    /\ (!n. SND (SND (co n)) = []) ==>
+  ∀cc es co c. syntax_oracle_ok c es co /\
+    (!n. SND (SND (co n)) = []) /\
+    (!n. FST (SND (co n)) ≠ []) ==>
   let (c'', prog') = compile_common c es;
     co' = pure_co clos_labelsProof$compile_inc ∘
         pure_co clos_annotateProof$compile_inc ∘
@@ -7766,7 +7776,6 @@ Proof
     clos_annotateProofTheory.every_Fn_SOME_ann,
     annotate_compile_every_Fn_vs_SOME]
   \\ abbrev_adj_tac rand
-
   \\ conseq [cond_call_compile_inc_req_oracle]
   \\ fs [backendPropsTheory.SND_state_co]
   \\ conseq ([every_Fn_SOME_cond_call_compile_inc]
@@ -7775,7 +7784,17 @@ Proof
   \\ abbrev_adj_tac rand
   \\ conseq ([known_co_req_oracle] @ known_co_req_intros)
   \\ csimp []
+
+FIXME: instead of every_Fn_SOME_known_co, add the SOME property
+to known_facts and use that here
   \\ conseq (BODY_CONJUNCTS every_Fn_SOME_known_co)
+  \\ fs []
+
+  \\ fs [compile_common_def]
+  \\ rpt (pairarg_tac \\ fs [])
+  \\ rveq \\ fs []
+
+
   \\ abbrev_adj_tac rand
 
   \\ fs [backendPropsTheory.SND_state_co, backendPropsTheory.FST_state_co]
@@ -7783,8 +7802,16 @@ Proof
   \\ csimp [FST_SND_ignore_table, SND_SND_ignore_table ]
 
   \\ unabbrev_all_tac
+  \\ conseq [renumber_code_locs_monotonic_req]
   \\ fs [SND_cond_mti_compile_inc]
+  \\ simp_tac bool_ss [NULL_LENGTH, GSYM NULL_EQ,
+        LENGTH_FST_cond_mti_compile_inc]
 
+  \\ fs []
+
+  \\ fs [Q.AP_THM (SPEC_ALL cond_mti_compile_inc_def) `x`]
+
+  \\ fs [SND_cond_mti_compile_inc]
 
 (* time for known_co *)
 
