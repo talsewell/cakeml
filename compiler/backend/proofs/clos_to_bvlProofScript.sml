@@ -7283,7 +7283,7 @@ QED
 
 fun mk_to_oracle t xsq = let
     val ty = type_of t;
-    val (_, rty) = dom_rng ty; 
+    val (_, rty) = dom_rng ty;
     val ts = match_type rty ``:'s clos_co``
     val (orac1, orac2) = dest_abs (inst ts t)
   in subset_req_orac_to_oracle
