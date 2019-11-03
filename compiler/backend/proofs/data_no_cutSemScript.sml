@@ -1,6 +1,7 @@
 (*
   Alternative semantics of dataLang without use of cut sets
 *)
+
 open preamble dataLangTheory dataSemTheory dataPropsTheory;
 
 val _ = new_theory"data_no_cutSem";
@@ -154,22 +155,6 @@ Proof
   \\ simp [state_component_equality]
 QED
 
-val do_app_with_locals = time Q.prove(
-  `do_app op vs (s with locals := z) =
-   map_result (λ(x,y). (x,y with <| locals := z ;
-                                    safe_for_space := do_app_safe op vs (s with locals := z)|>))
-                       I (do_app op vs s)`,
-  Cases_on `do_app op vs (s with locals := z)`
-  \\ Cases_on `op`
-  \\ ntac 2 (fs [do_app_aux_def,list_case_eq,option_case_eq,v_case_eq,
-              bool_case_eq,ffiTheory.call_FFI_def,do_app_def,do_space_def,
-              with_fresh_ts_def,closSemTheory.ref_case_eq,do_install_def,
-              ffiTheory.ffi_result_case_eq,ffiTheory.oracle_result_case_eq,
-              semanticPrimitivesTheory.eq_result_case_eq,astTheory.word_size_case_eq,
-              pair_case_eq,consume_space_def] >>
-          TRY (pairarg_tac \\ fs []) >>
-          rveq >> fs []) >> rw [state_component_equality]);
-
 Theorem locals_ok_insert:
   locals_ok ls ls' ==>
   locals_ok (insert x y ls) (insert x y ls')
@@ -250,6 +235,67 @@ Proof
   \\ simp [state_component_equality]
 QED
 
+Theorem do_space_rel:
+  do_space op len s = res /\
+  s_rel s t ==>
+  OPTREL s_rel res (do_space op len t)
+Proof
+  simp [do_space_def]
+  \\ EVERY_CASE_TAC \\ fs []
+  \\ rw []
+  \\ fs [OPTREL_def]
+  \\ fs [s_rel_def, state_component_equality]
+  \\ fs [consume_space_def]
+  \\ rveq \\ fs []
+QED
+
+fun eq_2case_tac get_case1 get_case2 (hyps, goal) = let
+    val (_, ct1, _) = TypeBase.dest_case (get_case1 goal)
+    val (_, ct2, _) = TypeBase.dest_case (get_case2 goal)
+    val tac = if term_eq ct1 ct2 then
+        Cases_on `^ct1`
+        else (reverse (suff_tac (mk_eq (ct1, ct2)))
+            THENL [all_tac, simp [] \\ Cases_on `^ct2`])
+  in tac (hyps, goal) end
+
+val rel_eq_2case_tac = eq_2case_tac (rand o rator) rand
+
+Theorem do_app_s_rel:
+  do_app op xs s = res /\
+  s_rel s t ==>
+  result_rel ((=) ### s_rel) (=) res (do_app op xs t)
+Proof
+  strip_tac
+  \\ fs [do_app_def, bool_case_eq, option_case_eq]
+  >- (
+    simp [do_install_def]
+    \\ rpt ((rel_eq_2case_tac ORELSE pairarg_tac ORELSE disch_tac) \\ fs [])
+    \\ fs [s_rel_def, quotient_pairTheory.PAIR_REL_THM] \\ rveq \\ fs []
+    \\ simp [state_component_equality]
+    \\ rpt (pairarg_tac \\ fs [])
+    \\ rpt (CASE_TAC \\ fs [])
+    \\ fs [quotient_pairTheory.PAIR_REL_THM, s_rel_def,
+        state_component_equality]
+  )
+  \\ drule_then drule do_space_rel
+  \\ simp [OPTREL_def]
+  \\ rw []
+  \\ simp []
+  (* saved *)
+  \\ simp [do_app_aux_def, with_fresh_ts_def]
+  \\ rpt ((do_2case_tac ORELSE disch_tac) \\ simp [])
+  \\ rw [quotient_pairTheory.PAIR_REL_THM]
+  \\ TRY (fs [s_rel_def] \\ rveq \\ fs [state_component_equality] \\ NO_TAC)
+QED
+
+Theorem exc_rel_eq:
+  exc_rel $= = $=
+Proof
+  simp [FUN_EQ_THM]
+  \\ rpt Cases
+  \\ simp []
+QED
+
 Theorem evaluate_no_cut:
   !prog s s' t res ls.
   case (prog, s) of (prog, s) =>
@@ -278,8 +324,12 @@ Proof
     \\ drule_then drule s_rel_get_vars
     \\ rw []
     \\ EVERY_CASE_TAC
+    \\ drule_then drule do_app_s_rel
+    \\ simp [quotient_pairTheory.PAIR_REL_THM]
     \\ fs [] \\ rveq \\ fs []
-    \\ cheat
+    \\ simp [s_rel_set_var]
+    \\ simp [call_env_def, exc_rel_eq, s_rel_def]
+    \\ fs [s_rel_def, state_component_equality, locals_ok_refl]
   )
   >- (
     fs [bool_case_eq, call_env_def, dec_clock_def]
