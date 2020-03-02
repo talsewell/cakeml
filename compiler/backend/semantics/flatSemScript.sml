@@ -5,6 +5,7 @@
 open preamble flatLangTheory
      semanticPrimitivesPropsTheory
      source_to_flatTheory
+     alist_treeTheory
 
 val _ = new_theory "flatSem";
 
@@ -34,7 +35,7 @@ val _ = Datatype`
     v : (varN, 'v) alist;
   (* the same constructor info as in the state below, but only those in scope
      (Eval can create constructors that are out of scope) *)
-    c : ((ctor_id # type_id) # num) set
+    c : type_id -> (ctor_id # num) set option
   |>`;
 
 val _ = Datatype`
@@ -69,8 +70,8 @@ val _ = Datatype`
     refs    : v store;
     ffi     : 'ffi ffi_state;
     globals : (v option) list;
-    (* The set of constructors that exist, according to their id, type and arity *)
-    c : ((ctor_id # type_id) # num) set;
+    (* The set of constructors that exist, id and arity, within each type *)
+    c : type_id -> (ctor_id # num) set option;
     (* eval or install mode *)
     eval_mode : 'c eval_config
   |>`;
@@ -573,12 +574,13 @@ Proof
 QED
 
 Definition pmatch_stamps_ok_def:
-  pmatch_stamps_ok c (SOME n) (SOME n') ps vs =
-    ((n, LENGTH ps) ∈ c ∧ ctor_same_type (SOME n) (SOME n'))
+  pmatch_stamps_ok s_c e_c (SOME (id, ty)) (SOME (id', ty')) len_ps len_vs =
+    (?cs. s_c ty = SOME cs ∧ e_c ty = SOME cs ∧ ty = ty' ∧
+        (id, len_ps) ∈ cs ∧ (id', len_vs) ∈ cs)
   ∧
-  pmatch_stamps_ok _ NONE NONE ps vs = (LENGTH ps = LENGTH vs)
+  pmatch_stamps_ok _ _ NONE NONE pat_len con_len = (pat_len = con_len)
   ∧
-  pmatch_stamps_ok _ _ _ ps vs = F
+  pmatch_stamps_ok _ _ _ _ ps vs = F
 End
 
 Definition pmatch_def:
@@ -593,7 +595,7 @@ Definition pmatch_def:
     else
       Match_type_error) ∧
   (pmatch env s (Pcon stmp ps) (Conv stmp' vs) bindings =
-    if ~ pmatch_stamps_ok (s.c ∩ env.c) stmp stmp' ps vs then
+    if ~ pmatch_stamps_ok s.c env.c stmp stmp' (LENGTH ps) (LENGTH vs) then
       Match_type_error
     else if OPTION_MAP FST stmp = OPTION_MAP FST stmp' ∧
             LENGTH ps = LENGTH vs then
@@ -653,12 +655,20 @@ Proof
 QED
 
 val is_fresh_type_def = Define `
-  is_fresh_type type_id ctors ⇔
-    !ctor. ctor ∈ ctors ⇒ !arity id. ctor ≠ ((id, SOME type_id), arity)`;
+  is_fresh_type type_id ctors ⇔ (ctors (SOME type_id) = NONE)`;
+
+val current_exns_def = Define `
+  current_exns ctors = (case ctors NONE of
+      NONE => {}
+    | SOME exns => exns)`;
 
 val is_fresh_exn_def = Define `
-  is_fresh_exn exn_id ctors ⇔
-    !ctor. ctor ∈ ctors ⇒ !arity. ctor ≠ ((exn_id, NONE), arity)`;
+  is_fresh_exn exn_id ctors ⇔ (!arity. (exn_id, arity) ∉ current_exns ctors)`;
+
+val con_defined = Define `
+  con_defined ctors ((id, type_id), arity) ⇔ (case ctors type_id of
+      NONE => F
+    | SOME s => (id, arity) ∈ s)`;
 
 val do_eval_def = Define `
   do_eval (vs :v list) ^s =
@@ -737,7 +747,7 @@ Definition evaluate_def:
       | (s, Rval vs) => (s,Rval [Conv NONE (REVERSE vs)])
       | res => res) ∧
   (evaluate env s [Con _ (SOME cn) es] =
-    if (cn, LENGTH es) ∈ s.c ∧ (cn, LENGTH es) ∈ env.c
+    if con_defined s.c (cn, LENGTH es) ∧ con_defined env.c (cn, LENGTH es)
     then
       (case evaluate env s (REVERSE es) of
       | (s, Rval vs) => (s, Rval [Conv (SOME cn) (REVERSE vs)])
@@ -811,15 +821,17 @@ Definition evaluate_def:
    | (s, Rerr e) => (s, c, SOME e)) ∧
   (evaluate_dec s c (Dtype id ctors) =
     if is_fresh_type id s.c ∧ is_fresh_type id c then
-      let new_c = { ((idx, SOME id), arity) |
+      let new_c = { (idx, arity) |
           ?max. lookup arity ctors = SOME max ∧ idx < max } in
-      (s with c updated_by $UNION new_c, c ∪ new_c, NONE)
+      (s with c updated_by (\c. c ⦇ SOME id ↦ SOME new_c ⦈),
+        c ⦇ SOME id ↦ SOME new_c ⦈, NONE)
     else
       (s, c, SOME (Rabort Rtype_error))) ∧
   (evaluate_dec s c (Dexn id arity) =
     if is_fresh_exn id s.c ∧ is_fresh_exn id c then
-      (s with c updated_by $UNION {((id, NONE), arity)},
-        c ∪ {((id, NONE), arity)}, NONE)
+      (s with c updated_by (\c. c ⦇ NONE ↦
+          SOME (current_exns c ∪ {(id, arity)})⦈),
+        c ⦇ NONE ↦ SOME (current_exns c ∪ {(id, arity)})⦈, NONE)
     else
       (s, c, SOME (Rabort Rtype_error))) ∧
   (evaluate_decs s c [] = (s, c, NONE)) ∧
@@ -916,26 +928,23 @@ val evaluate_ind = save_thm("evaluate_ind",
   REWRITE_RULE [fix_clock_evaluate] evaluate_ind);
 
 val bool_ctors_def = Define `
-  bool_ctors =
-    { ((true_tag, SOME bool_id), 0n)
-    ; ((false_tag, SOME bool_id), 0n) }`;
+  bool_ctors = { (true_tag, 0n) ; (false_tag, 0n) }`;
 
 val list_ctors_def = Define `
-  list_ctors =
-    { ((cons_tag, SOME list_id), 2n)
-    ; ((nil_tag, SOME list_id), 0n) }`;
+  list_ctors = { (cons_tag, 2n) ; (nil_tag, 0n) }`;
 
 val exn_ctors_def = Define `
   exn_ctors =
-    { ((div_tag, NONE), 0n)
-    ; ((chr_tag, NONE), 0n)
-    ; ((subscript_tag, NONE), 0n)
-    ; ((bind_tag, NONE), 0n) }`;
+    { (div_tag, 0n) ; (chr_tag, 0n) ; (subscript_tag, 0n) ; (bind_tag, 0n) }`;
 
 val _ = export_rewrites ["bool_ctors_def", "list_ctors_def", "exn_ctors_def"];
 
 val initial_ctors_def = Define `
-   initial_ctors = bool_ctors UNION list_ctors UNION exn_ctors`;
+  initial_ctors = ALOOKUP [
+    (SOME bool_id, bool_ctors);
+    (SOME list_id, list_ctors);
+    (NONE, exn_ctors)
+  ]`;
 
 val initial_state_def = Define `
   initial_state ffi k ec =

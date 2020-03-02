@@ -96,24 +96,27 @@ val nsBindList_pat_tups_bind_locals = Q.prove(`
 
 val _ = Datatype `
   global_env =
-    <| v : flatSem$v option list; c : (ctor_id # type_id) # num |-> stamp |>`;
+    <| v : flatSem$v option list; c : type_id |-> (ctor_id # num |-> stamp) |>`;
 
 val has_bools_def = Define `
   has_bools genv ⇔
-    FLOOKUP genv ((true_tag, SOME bool_id), 0n) = SOME (TypeStamp "True" bool_type_num) ∧
-    FLOOKUP genv ((false_tag, SOME bool_id), 0n) = SOME (TypeStamp "False" bool_type_num)`;
+    FLOOKUP genv (SOME bool_id) = SOME (FEMPTY |++
+      [((true_tag, 0n), TypeStamp "True" bool_type_num);
+        ((false_tag, 0n), TypeStamp "False" bool_type_num)])`;
 
 val has_lists_def = Define `
   has_lists genv ⇔
-    FLOOKUP genv ((cons_tag, SOME list_id), 2n) = SOME (TypeStamp "::" list_type_num) ∧
-    FLOOKUP genv ((nil_tag, SOME list_id), 0n) = SOME (TypeStamp "[]" list_type_num)`;
+    FLOOKUP genv (SOME list_id) = SOME (FEMPTY |++
+      [((cons_tag, 2n), TypeStamp "::" list_type_num);
+        ((nil_tag, 0n), TypeStamp "[]" list_type_num)])`;
 
 val has_exns_def = Define `
   has_exns genv ⇔
-    FLOOKUP genv ((div_tag, NONE), 0n) = SOME div_stamp ∧
-    FLOOKUP genv ((chr_tag, NONE), 0n) = SOME chr_stamp ∧
-    FLOOKUP genv ((subscript_tag, NONE), 0n) = SOME subscript_stamp ∧
-    FLOOKUP genv ((bind_tag, NONE), 0n) = SOME bind_stamp`;
+    ?exns. FLOOKUP genv NONE = SOME exns ∧
+    FLOOKUP exns (div_tag, 0n) = SOME div_stamp ∧
+    FLOOKUP exns (chr_tag, 0n) = SOME chr_stamp ∧
+    FLOOKUP exns (subscript_tag, 0n) = SOME subscript_stamp ∧
+    FLOOKUP exns (bind_tag, 0n) = SOME bind_stamp`;
 
 val genv_c_ok_def = Define `
   genv_c_ok genv_c ⇔
@@ -135,13 +138,21 @@ Definition local_c_rel1_def:
   local_c_rel1 comp_map_c src_c flat_c <=>
   (!x arity stamp.
     nsLookup src_c x = SOME (arity, stamp) ⇒
-      ∃cn. nsLookup comp_map_c x = SOME cn ∧
-        (cn, arity) ∈ flat_c)
+      ∃cn type_id ctors. nsLookup comp_map_c x = SOME (cn, type_id) ∧
+        flat_c type_id = SOME ctors ∧
+        (cn, arity) ∈ ctors)
+End
+
+Definition sub_ctors_def:
+  sub_ctors c c' <=>
+  current_exns c ⊆ current_exns c' ∧
+  (! ty. IS_SOME (c (SOME ty)) ==> c' (SOME ty) = c (SOME ty))
 End
 
 Definition local_c_rel_def:
   local_c_rel comp_map_c src_c flat_c <=>
-  local_c_rel1 comp_map_c src_c flat_c /\ initial_ctors ⊆ flat_c
+  local_c_rel1 comp_map_c src_c flat_c ∧
+  sub_ctors initial_ctors flat_c
 End
 
 Inductive v_rel:
