@@ -243,6 +243,7 @@ val _ = Hol_datatype `
   <| oracle : num -> (num # num) # v # dec list ;
     compiler : (num # num) -> v -> dec list ->  ( word8 list # word64 list)option ;
     envs : ( ( v sem_env)list) list ;
+    eval_return_env : bool ;
     generation : num
   |>`;
 
@@ -1138,13 +1139,16 @@ val _ = Define `
     envs := ((++) (s.envs) ([[]])) |>)))`;
 
 
-(*val declare_env : maybe eval_state -> sem_env v -> maybe (v * maybe eval_state)*)
+(*val declare_env : bool -> maybe eval_state -> sem_env v ->
+        maybe (v * maybe eval_state)*)
 val _ = Define `
- (declare_env es env=  ((case es of
+ (declare_env is_eval es env=  ((case es of
     SOME EvalDecs => SOME (Env env, es)
   | SOME (EvalOracle s) => (case (lem_list$list_index s.envs s.generation) of
-      SOME gen_envs => SOME (Conv NONE
-            [nat_to_v s.generation; nat_to_v (LENGTH gen_envs)],
+      SOME gen_envs => SOME ((if ~ s.eval_return_env /\ is_eval
+            then Conv NONE []
+            else Conv NONE [nat_to_v s.generation;
+                nat_to_v (LENGTH gen_envs)]),
         SOME (EvalOracle ( s with<| envs := (LUPDATE ((++) gen_envs ([env])) s.generation s.envs) |>)))
     | NONE => NONE
     )

@@ -148,6 +148,7 @@ type eval_oracle_state =
   <| oracle : nat -> (nat * nat) * v * list dec ;
     compiler : (nat * nat) -> v -> list dec -> maybe (list word8 * list word64) ;
     envs : list (list (sem_env v)) ;
+    eval_return_env : bool ;
     generation : nat
   |>
 
@@ -923,12 +924,15 @@ let add_env_generation s = <| s with
     generation = List.length s.envs ;
     envs = List.append s.envs [[]] |>
 
-val declare_env : maybe eval_state -> sem_env v -> maybe (v * maybe eval_state)
-let declare_env es env = match es with
+val declare_env : bool -> maybe eval_state -> sem_env v ->
+        maybe (v * maybe eval_state)
+let declare_env is_eval es env = match es with
   | Just EvalDecs -> Just (Env env, es)
   | Just (EvalOracle s) -> match (List.index s.envs s.generation) with
-    | Just gen_envs -> Just (Conv Nothing
-            [nat_to_v s.generation; nat_to_v (List.length gen_envs)],
+    | Just gen_envs -> Just (if not s.eval_return_env && is_eval
+            then Conv Nothing []
+            else Conv Nothing [nat_to_v s.generation;
+                nat_to_v (List.length gen_envs)],
         Just (EvalOracle <| s with envs = List.update s.envs s.generation
             (List.append gen_envs [env]) |>))
     | Nothing -> Nothing
