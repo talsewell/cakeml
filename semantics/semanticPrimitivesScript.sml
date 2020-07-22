@@ -1628,6 +1628,7 @@ val _ = Define `
             )
         | _ => NONE
         )
+    | _ => NONE
   )))`;
 
 

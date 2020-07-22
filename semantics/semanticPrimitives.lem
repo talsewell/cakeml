@@ -1385,6 +1385,7 @@ let do_app ((s:store v),(t:ffi_state 'ffi)) op vs =
             end
         | _ -> Nothing
         end
+    | _ -> Nothing
   end
 
 (* Do a logical operation *)
