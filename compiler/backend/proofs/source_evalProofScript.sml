@@ -344,8 +344,13 @@ Proof
   Cases_on `p` \\ simp []
 QED
 
-Theorem no_Eval_evaluate:
+Theorem combine_dec_result_eq_Rerr:
+  combine_dec_result env r = Rerr e <=> r = Rerr e
+Proof
+  Cases_on `r` \\ simp [combine_dec_result_def]
+QED
 
+Theorem no_Eval_evaluate:
   (! ^s env exps s' res.
   evaluate s env exps = (s', res) /\
   no_Eval_env env /\
@@ -398,17 +403,17 @@ Theorem no_Eval_evaluate:
     | Rerr (Rraise v) => no_Eval_v v
     | _ => T)
   )
-
 Proof
-
+  (* the try-this-on-everything approach is ugly, but it would be
+     super tedious to go through 20-plus cases for this *)
   ho_match_mp_tac terminationTheory.full_evaluate_ind
   \\ rw [terminationTheory.full_evaluate_def]
   \\ fs [has_Eval_def, has_Eval_dec_def, EVERY_REVERSE, no_Eval_v_cases]
   \\ rveq \\ fs []
   \\ fs [pair_case_eq, result_case_eq, error_result_case_eq, bool_case_eq,
     option_case_eq, exp_or_val_case_eq]
-  \\ rveq \\ fs []
-  \\ fs [pair_CASE_eq_pairarg]
+  \\ rw []
+  \\ fs [pair_CASE_eq_pairarg, combine_dec_result_eq_Rerr]
   \\ rpt (pairarg_tac \\ fs [])
   \\ rveq \\ fs []
   \\ fs [match_result_case_eq, do_log_def, do_if_def, build_conv_def,
@@ -425,13 +430,14 @@ Proof
   \\ rpt disch_tac
   \\ ntac 2 (rveq \\ fs [])
   \\ fs [dec_clock_def, build_rec_env_merge, nsAppend_to_nsBindList,
-    declare_env_def, option_case_eq, eval_state_case_eq]
+    declare_env_def, option_case_eq, eval_state_case_eq, pair_case_eq]
+  \\ rveq \\ fs []
+  \\ rfs []
   \\ simp [list_result_def]
   \\ TRY (
     CHANGED_TAC (simp [namespaceTheory.nsOptBind_def]) \\ CASE_TAC
     \\ simp []
   )
-
   \\ TRY (
     simp [no_Eval_env_def, alist_to_ns_to_bind2, nsSing_eq_bind]
     \\ MAP_FIRST irule [env_rel_add_nsBind, env_rel_add_nsBindList, env_rel_nsLift]
@@ -451,13 +457,11 @@ Proof
   \\ rveq \\ fs []
   \\ simp [no_Eval_v_cases, EVERY_REVERSE]
   \\ TRY (qpat_x_assum `_ <> Rerr _ ==> _` mp_tac \\ impl_tac \\ strip_tac)
-  \\ fs []
+  \\ rveq \\ fs []
   \\ TRY (fs [no_Eval_env_def, env_rel_def] \\ res_tac
     \\ fs [no_Eval_v_rel_rules] \\ NO_TAC)
-
-
-  (* maybe? *)
 QED
+
 
 
 
