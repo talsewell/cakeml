@@ -1217,7 +1217,7 @@ val _ = Define `
     (SOME (EvalDecs s), [Env env id; st_v; decs_v; st_v2; bs_v; ws_v]) =>
     (case (v_to_decs decs_v, v_to_word8_list bs_v, v_to_word64_list ws_v,
         first_order_v_eq st_v s.compiler_state) of
-      (SOME decs, SOME bs, SOME ws, True) => (case
+      (SOME decs, SOME bs, SOME ws, T) => (case
         s.compiler (id, s.compiler_state, decs) of
         SOME (st2, c_bs, c_ws) => if first_order_v_eq st_v2 st2
             /\ (c_bs = bs) /\ (c_ws = ws)
