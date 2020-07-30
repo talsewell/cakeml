@@ -594,48 +594,81 @@ Proof
   \\ simp [nsLookup_alist_to_ns_some, PULL_EXISTS]
 QED
 
-Theorem v1_size:
-  !xs. v1_size xs = SUM (MAP v_size xs) + LENGTH xs
-Proof
-  Induct \\ simp [v_size_def]
-QED
-
-Definition concrete_v_def:
-  concrete_v (Vectorv xs) = EVERY concrete_v xs /\
-  concrete_v (Conv stmp xs) = EVERY concrete_v xs /\
-  concrete_v (Litv l) = T /\
-  concrete_v (Loc l) = T /\
-  concrete_v _ = F
-Termination
-  WF_REL_TAC `measure v_size`
-  \\ rw [v_size_def, v1_size]
-  \\ fs [MEM_SPLIT, SUM_APPEND]
-End
-
 Theorem concrete_v_rel:
   !x y. v_rel es x y ==> concrete_v x ==> y = x
 Proof
   ho_match_mp_tac v_rel_ind
-  \\ rw [concrete_v_def]
+  \\ rw []
   \\ fs [EVERY_EL, LIST_REL_EL_EQN, LIST_EQ_REWRITE]
 QED
 
 Theorem v_to_decs:
-  v_to_decs x = SOME decs /\
-  v_rel es x y ==>
-  v_to_decs y = SOME decs
+  v_to_decs x = SOME decs ==>
+  concrete_v x
 Proof
   cheat
 QED
 
+Theorem v_to_list_concrete:
+  !x xs. v_to_list x = SOME xs ==>
+  concrete_v x = EVERY concrete_v xs
+Proof
+  recInduct terminationTheory.v_to_list_ind
+  \\ rw [terminationTheory.v_to_list_def]
+  \\ fs [option_case_eq]
+  \\ rveq \\ fs []
+  \\ rfs []
+QED
+
+Theorem maybe_all_list_SOME:
+  !xs ys. maybe_all_list xs = SOME ys ==> xs = MAP SOME ys
+Proof
+  Induct \\ simp [Once terminationTheory.maybe_all_list_def]
+  \\ simp [option_case_eq, PULL_EXISTS]
+QED
+
+Theorem maybe_all_list_EVERY:
+  maybe_all_list xs = SOME ys ==> EVERY (\x. x <> NONE) xs
+Proof
+  rw [] \\ imp_res_tac maybe_all_list_SOME
+  \\ simp [EVERY_MAP]
+QED
+
+Theorem v_to_word8_list_concrete:
+  v_to_word8_list x = SOME xs ==>
+  concrete_v x
+Proof
+  rw [v_to_word8_list_def, option_case_eq]
+  \\ imp_res_tac maybe_all_list_EVERY
+  \\ drule v_to_list_concrete
+  \\ rw []
+  \\ fs [EVERY_MAP]
+  \\ first_x_assum (fn t => mp_tac t \\ match_mp_tac MONO_EVERY)
+  \\ Cases \\ simp [v_to_word8_def]
+QED
+
+Theorem v_to_word64_list_concrete:
+  v_to_word64_list x = SOME xs ==>
+  concrete_v x
+Proof
+  rw [v_to_word64_list_def, option_case_eq]
+  \\ imp_res_tac maybe_all_list_EVERY
+  \\ drule v_to_list_concrete
+  \\ rw []
+  \\ fs [EVERY_MAP]
+  \\ first_x_assum (fn t => mp_tac t \\ match_mp_tac MONO_EVERY)
+  \\ Cases \\ simp [v_to_word64_def]
+QED
+
 Theorem compiler_agrees:
-  compiler_agrees f (id, st_v, decs) (st_v2, bs_v, ws_v) /\
-  v_rel es st_v st_v3 /\ v_rel es st_v2 st_v4 /\
-  v_rel es bs_v bs_v2 /\ v_rel es ws_v ws_v2 ==>
-  compiler_agrees f (id, st_v3, decs) (st_v4, bs_v2, ws_v2) /\
+  compiler_agrees f (id, st_v, decs) (st_v2, bs_v, ws_v) ==>
   concrete_v st_v /\ concrete_v st_v2 /\ concrete_v bs_v /\ concrete_v ws_v
 Proof
-  cheat
+  simp [compiler_agrees_def]
+  \\ every_case_tac
+  \\ rw []
+  \\ imp_res_tac v_to_word8_list_concrete
+  \\ imp_res_tac v_to_word64_list_concrete
 QED
 
 Theorem do_eval:
@@ -643,8 +676,8 @@ Theorem do_eval:
   s_rel s t /\
   LIST_REL (v_rel (orac_s t.eval_state)) xs ys ==>
   ? env' es'.
-  do_eval (REVERSE ys) t.eval_state = SOME (env', decs, es') /\
   es_forward (orac_s t.eval_state) (orac_s es') /\
+  do_eval (REVERSE ys) t.eval_state = SOME (env', decs, es') /\
   env_rel (v_rel (orac_s es')) env env' /\
   s_rel (s with eval_state := es) (t with eval_state := es')
 Proof
@@ -656,113 +689,84 @@ Proof
   \\ rveq \\ fs []
   \\ imp_res_tac v_to_decs
   \\ simp [do_eval_record_def, state_component_equality]
-  \\ drule compiler_agrees
-  \\ rpt (disch_then drule)
-  \\ disch_tac
-  \\ fs [ELIM_UNCURRY]
+  \\ imp_res_tac compiler_agrees
   \\ imp_res_tac concrete_v_rel
+  \\ fs [ELIM_UNCURRY]
   \\ rveq \\ fs []
   \\ simp [add_env_generation_def, add_decs_generation_def, PULL_EXISTS]
   \\ simp [EL_APPEND_EQN]
   \\ qexists_tac `init_s`
-  \\ simp []
-  \\ qmatch_goalsub_abbrev_tac `es_forward cur_es new_es`
-  \\ qsuff_tac `es_forward cur_es new_es`
+  \\ conj_asm1_tac
   >- (
-    rpt strip_tac \\ rw [] \\ fs []
-    \\ imp_res_tac forward_rules
-    \\ simp [FUN_EQ_THM, EQ_SYM_EQ]
+    simp [es_forward_def]
+    \\ simp [lookup_env_def, FORALL_PROD, lem_listTheory.list_index_def]
+    \\ simp [bool_case_eq, option_case_eq, EL_APPEND_EQN]
   )
-  \\ fs [markerTheory.Abbrev_def, es_forward_def]
-  \\ simp [lookup_env_def, FORALL_PROD, lem_listTheory.list_index_def]
-  \\ simp [bool_case_eq, option_case_eq, EL_APPEND_EQN]
+  \\ rpt strip_tac \\ rw [] \\ fs []
+  \\ imp_res_tac forward_rules
+  \\ simp [FUN_EQ_THM, EQ_SYM_EQ]
 QED
 
-(* so, assumptions we need:
-   1. compiler prog evals to some definite collection of things
-   2. those things include "compiler" and "load"
-   3. "compiler" given a env_id/s/decs triple executes statelessly
-      and returns a bytes/words/s triple
-   4. "load" .. yeah let's come back to that.
-   things we need to show:
-   1. the world "eval" is called from has the compiler module,
-      and "state", and the list constructors, and maybe some other
-      things
-   2. "eval" can safely call "compiler" and "load"
-   3. that's it?
-*)
-
-Definition compiler_contents_def:
-  compiler_contents cfg ffi = (case prim_sem_env ffi of
-    | NONE => NONE
-    | SOME (st, env) => (case evaluate_decs st env cfg.compiler_decs of
-        | (st', Rval env') => SOME (st', env')
-        | _ => NONE
-  ))
-End
-
-Definition compiler_decs_assumption_def:
-  compiler_decs_assumption cfg ffi <=>
-  ?st env comp load.
-  compiler_contents cfg ffi = SOME (st, env) /\
-     nsLookup env.v (Short "compiler") = SOME comp /\
-     nsLookup env.v (Short "load") = SOME load
-End
-
-
-Theorem nsLookup_Long_mod:
-  nsLookup ns (Long mnm id) = case nsLookupMod ns [mnm] of
-    | NONE => NONE
-    | SOME ns' => nsLookup ns' id
-Proof
-  Cases_on `ns`
-  \\ simp [namespaceTheory.nsLookupMod_def, namespaceTheory.nsLookup_def]
-  \\ CASE_TAC \\ simp []
-QED
-
-(* this is all confused about the question of how to set things up
-   to be compatible with translator theorems about the compiler
-   function.
-Theorem eval_eval:
-
+Theorem declare_env:
+  declare_env s.eval_state env = SOME (v, es) /\
   s_rel s t /\
-  nsLookup vs (Short "state") = SOME (Loc 0) /\
-  (if LENGTH (orac_s t.eval_state).envs <= 1
-    then HD t.refs = Refv (list_to_v [])
-    else ? compiler_st. HD t.refs = Refv (list_to_v [compiler_st])) /\
-  nsLookup env.c (Short "::") = SOME (2,TypeStamp "::" list_type_num) /\
-  nsLookupMod vs ["Compiler"] =
+  env_rel (v_rel (orac_s t.eval_state)) env env' ==>
+  ?v' es2.
+  es_forward (orac_s t.eval_state) (orac_s es2) /\
+  declare_env t.eval_state env' = SOME (v', es2) /\
+  v_rel (orac_s es2) v v' /\
+  s_rel (s with eval_state := es) (t with eval_state := es2)
+Proof
+  rw [s_rel_def, declare_env_def]
+  \\ fs []
+  \\ rveq \\ fs []
+  \\ simp [lem_listTheory.list_index_def, v_to_env_id_def,
+        v_to_nat_def, nat_to_v_def, lookup_env_def, EL_LUPDATE]
+  \\ simp [EL_APPEND_EQN]
+  \\ conj_asm1_tac
+  >- (
+    simp [es_forward_def]
+    \\ simp [lookup_env_def, FORALL_PROD, lem_listTheory.list_index_def]
+    \\ simp [bool_case_eq, option_case_eq]
+    \\ rw [EL_APPEND_EQN, EL_LUPDATE]
+  )
+  \\ simp [state_component_equality, PULL_EXISTS]
+  \\ qexists_tac `init_s`
+  \\ simp [EL_LUPDATE]
+  \\ imp_res_tac forward_rules \\ fs []
+QED
 
-  ==>
-  ? t'.
-  evaluate t (env with v := nsBind "x" (Conv NONE [env_id; decs]) vs)
-    [eval_fun_body fname]
-    = (t', foo) /\
-  s_rel s t'
+Theorem reset_env_generation:
+  s_rel s t /\
+  s_rel prior_s prior_t /\
+  es_forward (orac_s prior_t.eval_state) (orac_s t.eval_state) ==>
+  es_forward (orac_s t.eval_state)
+    (orac_s (reset_env_generation prior_t.eval_state t.eval_state)) /\
+  s_rel (s with eval_state := reset_env_generation prior_s.eval_state s.eval_state)
+    (t with eval_state := reset_env_generation prior_t.eval_state t.eval_state)
 
 Proof
 
+  disch_tac \\ fs [s_rel_def]
+  \\ rveq \\ fs []
+  \\ fs [reset_env_generation_def, state_component_equality]
+  \\ conj_asm1_tac
+  >- (
+    simp [es_forward_def]
+    \\ simp [lookup_env_def, FORALL_PROD]
+  )
+  \\ qexists_tac `init_s`
+  \\ simp []
+  \\ rw []
+  \\ TRY (imp_res_tac forward_rules \\ fs [es_forward_def] \\ NO_TAC)
+  (* a "real issue" here, we need a stronger relation showing the lower frames
+     of the env stack aren't extended *)
+  \\ cheat
+
+QED
 
 
-  rw [s_rel_def]
-  \\ simp [eval_fun_body_def, Once mk_matches_def]
-  \\ simp [terminationTheory.evaluate_def, do_app_def, store_lookup_def]
-  \\ simp [astTheory.pat_bindings_def]
-  \\ fs [list_to_v_def, can_pmatch_all_def, terminationTheory.pmatch_def, same_type_def]
-  \\ simp [same_ctor_def]
-
-  >- cheat
-  \\ simp [eval_fun_body_def, Once mk_matches_def]
-  \\ simp [terminationTheory.evaluate_def, can_pmatch_all_def, terminationTheory.pmatch_def,
-        astTheory.pat_bindings_def]
-  \\ simp [eval_fun_body_def, Once mk_matches_def]
-  \\ simp [terminationTheory.evaluate_def, can_pmatch_all_def, terminationTheory.pmatch_def,
-        astTheory.pat_bindings_def, do_con_check_def, build_conv_def]
-
-
-  EVAL_TAC
-*)
-
+ 
 
 
 (* case splits for evaluate proofs *)
@@ -859,7 +863,6 @@ Proof
     \\ drule_then assume_tac can_pmatch_all
     \\ insts_tac
   )
-
   >- (
     eval_cases_tac
     \\ insts_tac
@@ -908,24 +911,26 @@ Proof
     >- (
 
       fs [do_eval_res_def, terminationTheory.evaluate_def, do_con_check_def]
-      \\ simp [MAP_REVERSE, ETA_THM, build_conv_def]
       \\ fs [option_case_eq, pair_case_eq] \\ rveq \\ fs []
-
       \\ drule_then (drule_then drule) do_eval
       \\ rw []
-      \\ fs [MAP_REVERSE]
-      \\ simp [fetch_eval, do_opapp_def]
-      \\ simp [Once mk_matches_def, terminationTheory.evaluate_def]
-
+      \\ fs []
       \\ drule_then assume_tac s_rel_clock
-
       \\ fs [bool_case_eq] \\ rveq \\ fs []
-      \\ simp [do_opapp_def]
-
+      \\ insts_tac
+      \\ fs [EVAL ``(dec_clock x).eval_state``]
       \\ eval_cases_tac
       \\ insts_tac
+      \\ TRY (drule_then (qsubterm_then `declare_env _ _` mp_tac) declare_env
+        \\ impl_tac \\ rw []
+        \\ TRY (irule env_rel_extend_dec_env))
+      \\ insts_tac
 
-      \\ fs [ETA_THM, terminationTheory.evaluate_def]
+      \\ drule reset_env_generation
+      \\ simp []
+      \\ qsubterm_x_ig_then `s_rel (_ with eval_state := (reset_env_generation _ Ig_1)) (_ with eval_state := (reset_env_generation _ Ig_2))` mp_tac (GEN_ALL reset_env_generation)
+      \\ impl_tac \\ insts_tac
+(* bleh *)
 
       (* Eval cheated *)
       \\ cheat
