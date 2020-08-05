@@ -1241,6 +1241,12 @@ Definition is_record_def:
     | _ => F
 End
 
+Theorem is_record_IMP:
+  is_record f es ==> ? orac_st. es = SOME (EvalOracle orac_st)
+Proof
+  simp [is_record_def] \\ every_case_tac \\ simp []
+QED
+
 Theorem insert_do_eval:
   do_eval vs es = SOME (env, decs, es') /\
   is_record f es ==>
@@ -1527,10 +1533,10 @@ Theorem evaluate_record_suffix:
   is_record f s.eval_state /\
   k <= s.clock
   ==>
-  let ev = evaluate (s with clock updated_by ((-) k)) env exps in
+  let ev = evaluate (s with clock updated_by (\c. c - k)) env exps in
   (
   k <= s'.clock /\
-  ev = (s' with clock updated_by ((-) k), res)
+  ev = (s' with clock updated_by (\c. c - k), res)
   ) \/ (
   ? s''. ev = (s'', Rerr (Rabort Rtimeout_error)) /\
   record_forward s''.eval_state s'.eval_state
@@ -1541,10 +1547,10 @@ Theorem evaluate_record_suffix:
   is_record f s.eval_state /\
   k <= s.clock
   ==>
-  let ev = evaluate_match (s with clock updated_by ((-) k)) env x pes err_x in
+  let ev = evaluate_match (s with clock updated_by (\c. c - k)) env x pes err_x in
   (
   k <= s'.clock /\
-  ev = (s' with clock updated_by ((-) k), res)
+  ev = (s' with clock updated_by (\c. c - k), res)
   ) \/ (
   ? s''. ev = (s'', Rerr (Rabort Rtimeout_error)) /\
   record_forward s''.eval_state s'.eval_state
@@ -1555,15 +1561,18 @@ Theorem evaluate_record_suffix:
   is_record f s.eval_state /\
   k <= s.clock
   ==>
-  let ev = evaluate_decs (s with clock updated_by ((-) k)) env decs in
+  let ev = evaluate_decs (s with clock updated_by (\c. c - k)) env decs in
   (
   k <= s'.clock /\
-  ev = (s' with clock updated_by ((-) k), res)
+  ev = (s' with clock updated_by (\c. c - k), res)
   ) \/ (
   ? s''. ev = (s'', Rerr (Rabort Rtimeout_error)) /\
   record_forward s''.eval_state s'.eval_state
   ))
 Proof
+  cheat
+QED
+
   ho_match_mp_tac terminationTheory.full_evaluate_ind
   \\ rpt conj_tac
   \\ rpt (gen_tac ORELSE disch_tac)
@@ -1589,23 +1598,147 @@ Proof
   \\ simp [combine_dec_result_def]
 QED
 
-
-
-Definition mk_good_orac_def:
-  mk_good_orac compiler recorded_orac (n : num) =
-  if n < FST (FST (recorded_orac 0))
-  then recorded_orac (n + 1)
-  else if n = 0
-  then ARB
-  else case compiler (mk_good_orac compiler recorded_orac (n - 1)) of
-    | NONE => ARB
-    | SOME (_, st, _) => ((0, 0), st, [])
+Definition mk_eval_oracle_def:
+  mk_eval_oracle s env decs = (\n.
+    case (OLEAST k. ?s' res.
+      evaluate_decs (s with clock := k) env decs = (s', res) /\
+        n < FST (FST ((orac_s (s'.eval_state)).oracle 0))
+    ) of
+    | NONE => ((0, 0), Conv NONE [], [])
+    | SOME k =>
+      let (s', _) = evaluate_decs (s with clock := k) env decs in
+        (orac_s s'.eval_state).oracle (n + 1)
+  )
 End
 
-semantics_prog_def |> SIMP_RULE (srw_ss ()) []
-  concl |>
-  
+Theorem evaluate_decs_clock_record_common_prefix:
+  evaluate_decs s env decs = (s', res) /\
+  evaluate_decs (s with clock := k) env decs = (s'', res') /\
+  is_record f s.eval_state /\
+  j < FST (FST ((orac_s s'.eval_state).oracle 0)) /\
+  j < FST (FST ((orac_s s''.eval_state).oracle 0)) ==>
+  (orac_s s'.eval_state).oracle (j + 1) =
+    (orac_s s''.eval_state).oracle (j + 1)
+Proof
+  rw []
+  \\ `? s_pre ck. s = (s_pre with clock := ck)`
+    by (qexists_tac `s` \\ simp [state_component_equality])
+  \\ fs []
+  \\ Cases_on `ck <= k`
+  >- (
+    drule (List.last (CONJUNCTS evaluate_record_suffix))
+    \\ simp []
+    \\ disch_then (qspec_then `k - ck` mp_tac)
+    \\ disch_then drule
+    \\ rw []
+    \\ fs []
+    \\ imp_res_simp_tac evaluate_is_record_forward
+    \\ fs [record_forward_def]
+    \\ imp_res_tac is_record_IMP
+    \\ fs []
+  )
+  >- (
+    qpat_x_assum `evaluate_decs _ _ _ = _` mp_tac
+    \\ drule (List.last (CONJUNCTS evaluate_record_suffix))
+    \\ simp []
+    \\ disch_then (qspec_then `ck - k` mp_tac)
+    \\ disch_then drule
+    \\ rw []
+    \\ fs []
+    \\ imp_res_simp_tac evaluate_is_record_forward
+    \\ fs [record_forward_def]
+    \\ imp_res_tac is_record_IMP
+    \\ fs []
+  )
+QED
 
+Theorem mk_eval_oracle_agrees:
+  evaluate_decs (t with clock := k) env decs = (t', res) /\
+  s_rel s t ==>
+  orac_agrees (mk_eval_oracle t env decs) (t'.eval_state)
+Proof
+  rw [s_rel_def, orac_agrees_def]
+  \\ `is_record dec_s.compiler (SOME (EvalOracle orac_s'))`
+    by (simp [is_record_def] \\ metis_tac [])
+  \\ imp_res_simp_tac evaluate_is_record_forward
+  \\ imp_res_simp_tac is_record_IMP
+  \\ fs []
+  \\ rw []
+  \\ simp [mk_eval_oracle_def]
+  \\ DEEP_INTRO_TAC whileTheory.OLEAST_INTRO
+  \\ rw []
+  >- (
+    first_x_assum (qspec_then `k` mp_tac)
+    \\ simp []
+  )
+  \\ fs []
+  \\ dxrule evaluate_decs_clock_record_common_prefix
+  \\ simp []
+  \\ rpt (disch_then drule)
+  \\ simp []
+QED
+
+Definition mk_orac_st_def:
+  mk_orac_st eds s env decs =
+    let es_record = EvalOracle <|
+      oracle := K ((0,0),Conv NONE [],[]);
+      custom_do_eval := do_eval_record eds.compiler eds.compiler_state;
+      envs := [[]]; generation := 0|> in
+    let orac = mk_eval_oracle (s with eval_state := SOME es_record)
+      env decs in
+    insert_oracle eds.compiler orac (SOME es_record)
+End
+
+Theorem result_rel_IMP_cases:
+  result_rel r_rel e_rel r r' ==>
+  ((?x. r = Rval x) \/ (?y. r = Rerr (Rraise y)) \/ (?a. r = Rerr (Rabort a)))
+Proof
+  Cases_on `r` \\ simp []
+  \\ Cases_on `e` \\ simp []
+QED
+
+Theorem evaluate_prog_with_clock_mk_orac_st:
+  evaluate_prog_with_clock s1 env k decs = (ffi, res) /\
+  res <> Rerr (Rabort Rtype_error) /\
+  s1.eval_state = SOME (EvalDecs eds) /\
+  s1.refs = [] /\
+  nsAll (K concrete_v) env.v /\
+  eds.env_id_counter = (0, 0, 1) ==>
+  ?res'.
+  evaluate_prog_with_clock (s1 with eval_state := mk_orac_st eds s1 env decs)
+    env k decs = (ffi, res') /\
+  result_rel (K (K T)) (K (K T)) res res'
+Proof
+  simp [evaluate_prog_with_clock_def]
+  \\ simp_tac bool_ss [mk_orac_st_def]
+  \\ rpt (pairarg_tac \\ full_simp_tac bool_ss [UNCURRY_DEF])
+  \\ pop_assum mp_tac
+  \\ LET_ELIM_TAC
+  \\ rveq \\ fs []
+  \\ rveq \\ fs []
+  \\ `s_rel (s1 with clock := k)
+    (s1 with <| clock := k; eval_state := SOME es_record |>)`
+  by ( unabbrev_all_tac \\ simp [s_rel_def, state_component_equality] )
+  \\ drule_then drule (List.last (CONJUNCTS compile_correct))
+  \\ simp []
+  \\ disch_then (qspec_then `env` mp_tac)
+  \\ simp [env_rel_concrete_v]
+  \\ disch_tac \\ fs []
+  \\ drule (List.last (CONJUNCTS insert_oracle_correct))
+  \\ disch_then (qspecl_then [`orac`, `eds.compiler`] mp_tac)
+  \\ `s_rel s1 (s1 with <| eval_state := SOME es_record |>)`
+  by ( unabbrev_all_tac \\ simp [s_rel_def, state_component_equality] )
+  \\ fs [Case_def, markerTheory.Abbrev_def]
+  \\ rveq \\ fs []
+  \\ impl_tac >- (
+    drule_then drule mk_eval_oracle_agrees
+    \\ simp [is_record_def]
+    \\ rpt strip_tac \\ fs []
+    \\ metis_tac []
+  )
+  \\ fs [s_rel_def]
+  \\ imp_res_tac result_rel_IMP_cases \\ fs []
+QED
 
 Theorem oracle_semantics_prog:
 
@@ -1615,28 +1748,32 @@ Theorem oracle_semantics_prog:
   s1.refs = [] /\
   nsAll (K concrete_v) env.v /\
   eds.env_id_counter = (0, 0, 1) ==>
-  ? orac_s. 
-  semantics_prog (s1 with eval_state := SOME (EvalOracle orac_s)) env decs
-    outcome /\
-  orac_s.custom_do_eval = do_eval_oracle eds.compiler /\
-  eds.compiler_state (FST (SND (orac_s.oracle 0)))
+  semantics_prog (s1 with eval_state := mk_orac_st eds s1 env decs) env decs
+    outcome
 
 Proof
 
-  Cases_on `outcome` \\ rw [semantics_prog_def]
+  Cases_on `outcome` \\ rw []
+  \\ fs [semantics_prog_def]
 
   >- (
+    
     (* diverge case *)
+    fs [evaluate_prog_with_clock_def]
+    \\ conj_tac
+    >- (
+      first_x_assum (qspec_then `k` mp_tac)
+      \\ rpt (pairarg_tac \\ fs [])
+      insert_oracle_correct
 
-  print_match [] ``semantics_prog``;
+  \\ first_x_assum mp_tac
+  \\ drule (List.last (CONJUNCTS insert_oracle_correct))
+  
 
+  \\ fs [markerTheory.Abbrev_def]
 
+  \\ simp []
 
-  precondition1 interp s1 env1 genv conf eval_conf prog ⇒
-   ¬semantics_prog s1 env1 prog Fail ⇒
-   semantics_prog s1 env1 prog
-      (semantics eval_conf s1.ffi
-          (SND (compile_prog conf prog)))
 
 
 
