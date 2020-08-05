@@ -1515,6 +1515,82 @@ Proof
   \\ fs [v_rel_concrete_v]
 QED
 
+Triviality neq_IMP_to_cases:
+  !y. (x <> y ==> P) ==> (x = y) \/ (x <> y)
+Proof
+  simp []
+QED
+
+Theorem evaluate_record_suffix:
+  (! ^s env exps s' res.
+  evaluate s env exps = (s', res) /\
+  is_record f s.eval_state /\
+  k <= s.clock
+  ==>
+  let ev = evaluate (s with clock updated_by ((-) k)) env exps in
+  (
+  k <= s'.clock /\
+  ev = (s' with clock updated_by ((-) k), res)
+  ) \/ (
+  ? s''. ev = (s'', Rerr (Rabort Rtimeout_error)) /\
+  record_forward s''.eval_state s'.eval_state
+  ))
+  /\
+  (! ^s env x pes err_x s' res.
+  evaluate_match s env x pes err_x = (s', res) /\
+  is_record f s.eval_state /\
+  k <= s.clock
+  ==>
+  let ev = evaluate_match (s with clock updated_by ((-) k)) env x pes err_x in
+  (
+  k <= s'.clock /\
+  ev = (s' with clock updated_by ((-) k), res)
+  ) \/ (
+  ? s''. ev = (s'', Rerr (Rabort Rtimeout_error)) /\
+  record_forward s''.eval_state s'.eval_state
+  ))
+  /\
+  (! ^s env decs s' res.
+  evaluate_decs s env decs = (s', res) /\
+  is_record f s.eval_state /\
+  k <= s.clock
+  ==>
+  let ev = evaluate_decs (s with clock updated_by ((-) k)) env decs in
+  (
+  k <= s'.clock /\
+  ev = (s' with clock updated_by ((-) k), res)
+  ) \/ (
+  ? s''. ev = (s'', Rerr (Rabort Rtimeout_error)) /\
+  record_forward s''.eval_state s'.eval_state
+  ))
+Proof
+  ho_match_mp_tac terminationTheory.full_evaluate_ind
+  \\ rpt conj_tac
+  \\ rpt (gen_tac ORELSE disch_tac)
+  \\ fs [compile_exp_def, compile_dec_def, terminationTheory.full_evaluate_def]
+  \\ rveq \\ fs []
+  \\ simp [record_forward_refl]
+  \\ fs [do_eval_res_def]
+  \\ eval_cases_tac
+  \\ fs [Q.ISPEC `(a, b)` EQ_SYM_EQ, dec_clock_def]
+  \\ rveq \\ fs []
+  \\ imp_res_simp_tac evaluate_is_record_forward
+  \\ fs []
+  \\ imp_res_simp_tac insert_do_eval
+  \\ fs []
+  \\ imp_res_simp_tac evaluate_is_record_forward
+  \\ fs []
+  \\ imp_res_simp_tac insert_declare_env
+  \\ fs [reset_env_generation_orac_eqs]
+  \\ TRY (rpt (simp [record_forward_refl]
+            \\ TRY DISJ2_TAC
+            \\ drule_then irule record_forward_trans)
+        \\ NO_TAC)
+  \\ simp [combine_dec_result_def]
+QED
+
+
+
 Definition mk_good_orac_def:
   mk_good_orac compiler recorded_orac (n : num) =
   if n < FST (FST (recorded_orac 0))
