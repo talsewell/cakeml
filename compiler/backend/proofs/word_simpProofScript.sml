@@ -1501,4 +1501,142 @@ Proof
             every_inst_inst_ok_less_const_fp,simp_duplicate_if_no_inst]
 QED
 
+
+
+
+
+Definition special_subexps_def:
+  special_subexps (MustTerminate p) = {MustTerminate Skip} UNION special_subexps p /\
+  special_subexps (Seq p1 p2) = special_subexps p1 UNION special_subexps p2 /\
+  special_subexps (If _ _ _ p1 p2) = special_subexps p1 UNION special_subexps p2 /\
+  special_subexps (wordLang$Call ret dest args handler) =
+    {wordLang$Call NONE dest [] NONE} UNION
+    (case ret of NONE => {} | SOME (_, _, p, _) => special_subexps p) UNION
+    (case handler of NONE => {} | SOME (_, p, h1, _) => special_subexps p UNION
+        {wordLang$Call NONE NONE [] (SOME (0, Skip, h1, 0))}) /\
+  special_subexps (LocValue _ l) = {LocValue 0 l} /\
+  special_subexps (ShareInst _ _ _) = {ShareInst ARB 0 (Var 0)} /\
+  special_subexps (Install _ _ _ _ _) = {Install 0 0 0 0 LN} /\
+  special_subexps _ = {}
+End
+
+Theorem no_mt_special_subexps:
+  !p. no_mt p = (~ (MustTerminate Skip IN special_subexps p))
+Proof
+  ho_match_mp_tac special_subexps_ind
+  \\ rw [no_mt_def, special_subexps_def]
+  \\ rpt (TOP_CASE_TAC \\ fs [])
+  \\ metis_tac []
+QED
+
+Theorem no_share_inst_special_subexps:
+  !p. no_share_inst p = (~ (ShareInst ARB 0 (Var 0) IN special_subexps p))
+Proof
+  ho_match_mp_tac special_subexps_ind
+  \\ rw [no_share_inst_def, special_subexps_def]
+  \\ rpt (TOP_CASE_TAC \\ fs [])
+  \\ metis_tac []
+QED
+
+Theorem no_install_special_subexps:
+  !p. no_install p = (~ (Install 0 0 0 0 LN IN special_subexps p))
+Proof
+  ho_match_mp_tac special_subexps_ind
+  \\ rw [no_install_def, special_subexps_def]
+  \\ rpt (TOP_CASE_TAC \\ fs [])
+  \\ metis_tac []
+QED
+
+Theorem get_code_labels_special_subexps:
+  !p. (x IN get_code_labels p) = ((Call NONE (SOME x) [] NONE IN special_subexps p)
+    \/ (LocValue 0 x IN special_subexps p))
+Proof
+  ho_match_mp_tac special_subexps_ind
+  \\ rw [get_code_labels_def, special_subexps_def]
+  \\ rpt (TOP_CASE_TAC \\ fs [])
+  \\ EQ_TAC \\ rw [] \\ fs []
+QED
+
+(* not quite true for good_handlers, which is fascinating *)
+
+Triviality special_subexps_const_fp_loop:
+  !p cs p1 cs1.
+  const_fp_loop p cs = (p1,cs1) ==>
+  x IN special_subexps p1 ==>
+  x IN special_subexps p
+Proof
+  ho_match_mp_tac const_fp_loop_ind
+  \\ rw [] \\ gvs [special_subexps_def, const_fp_loop_def]
+  \\ rpt (pairarg_tac \\ fs [])
+  \\ gvs [CaseEq "exp", CaseEq "option", CaseEq "bool", CaseEq "prod", special_subexps_def]
+  \\ rpt (pairarg_tac \\ fs [])
+  \\ gvs [special_subexps_def]
+QED
+
+
+Triviality labels_rel_hoist2:
+  ! N p1 interm dummy p2 s.
+  try_if_hoist2 N p1 interm dummy p2 = SOME p3 ==>
+  x IN special_subexps p3 ==> 
+  x IN (special_subexps p1 UNION special_subexps interm UNION special_subexps p2)
+
+Proof
+
+  ho_match_mp_tac try_if_hoist2_pmatch_ind
+  \\ rpt gen_tac
+  \\ rpt disch_tac
+  \\ REWRITE_TAC [Once try_if_hoist2_def]
+  \\ rw []
+  \\ fs [CaseEq "bool", CaseEq "wordLang$prog",
+        CaseEq "option", CaseEq "prod"]
+  \\ gvs []
+  \\ gs [special_subexps_def, dest_If_thm]
+
+  >- (
+    fs [is_simple_def] \\ every_case_tac
+    \\ gs [extract_labels_def]
+  )
+  >- (
+    fs [const_fp_def, const_fp_loop_Seq]
+    \\ rpt (pairarg_tac \\ fs [])
+    \\ gvs [dest_Seq_def]
+    \\ simp [Once const_fp_loop_def]
+    \\ rpt (dxrule const_fp_loop_dummy_cases)
+    \\ rw [] \\ fs []
+    \\ gs []
+    \\ fs [const_fp_loop_Seq]
+    \\ rpt (pairarg_tac \\ fs [])
+    \\ gvs [extract_labels_def]
+    \\ imp_res_tac extract_labels_const_fp_loop
+    \\ gs [extract_labels_def, EVAL ``labels_rel [] _``]
+    \\ rpt try_cancel_labels_rel_append
+    \\ simp []
+  )
+  >- (
+    fs [const_fp_def, const_fp_loop_Seq]
+    \\ rpt (pairarg_tac \\ fs [])
+    \\ gvs [dest_Seq_def]
+    \\ simp [Once const_fp_loop_def]
+    \\ rpt (dxrule const_fp_loop_dummy_cases)
+    \\ rw [] \\ fs []
+    \\ gs []
+    \\ fs [const_fp_loop_Seq]
+    \\ rpt (pairarg_tac \\ fs [])
+    \\ gvs [extract_labels_def]
+    \\ imp_res_tac extract_labels_const_fp_loop
+    \\ gs [extract_labels_def, EVAL ``labels_rel [] _``]
+    \\ rpt try_cancel_labels_rel_append
+    \\ simp []
+  )
+QED
+
+
+
+Theorem word_simp_special_subexps:
+  x IN special_subexps (compile_exp p) ==> x IN special_subexps p
+
+Proof
+
+
+
 val _ = export_theory();
