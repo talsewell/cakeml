@@ -799,6 +799,7 @@ QED
 
 (* accounting for the resources *)
 
+(* TS: why are these needed? the CakeML toolchain doesn't need them.
 Theorem word_to_word_compile_no_alloc:
   word_to_word$compile wconf aconf progs0 = (col, progs) ∧
   ALL_DISTINCT (MAP FST progs0) ∧
@@ -918,6 +919,7 @@ Proof
   MAP_EVERY qexists_tac [‘ac’, ‘kk’, ‘n’, ‘q'’, ‘r’, ‘aconf’, ‘q’, ‘wc’]>>
   qpat_x_assum ‘(k,n,p) = _’ $ assume_tac o GSYM>>gs[]
 QED
+*)
 
 (* TS: are these needed? they're not referenced anywhere else in the repo
 Theorem no_alloc_word_evaluate:
@@ -1008,10 +1010,7 @@ QED
 
 Theorem inst_stack_size_const_panLang:
   ∀i s t.
-  wordSem$inst i s = SOME t ∧
-  no_install_code s.code ∧
-  no_alloc_code s.code ∧
-  no_mt_code s.code ⇒
+  wordSem$inst i s = SOME t ==>
   t.stack_size = s.stack_size
 Proof
   Induct>>rw[wordSemTheory.inst_def,wordSemTheory.assign_def]>>
@@ -1026,10 +1025,7 @@ QED
 
 Theorem inst_stack_limit_const_panLang:
   ∀i s t.
-  wordSem$inst i s = SOME t ∧
-  no_install_code s.code ∧
-  no_alloc_code s.code ∧
-  no_mt_code s.code ⇒
+  wordSem$inst i s = SOME t ==>
   t.stack_limit = s.stack_limit
 Proof
   Induct>>rw[wordSemTheory.inst_def,wordSemTheory.assign_def]>>
@@ -1044,10 +1040,7 @@ QED
 
 Theorem inst_stack_max_const_panLang:
   ∀i s t.
-  wordSem$inst i s = SOME t ∧
-  no_install_code s.code ∧
-  no_alloc_code s.code ∧
-  no_mt_code s.code ⇒
+  wordSem$inst i s = SOME t ==>
   t.stack_max = s.stack_max
 Proof
   Induct>>rw[wordSemTheory.inst_def,wordSemTheory.assign_def]>>
@@ -1060,88 +1053,63 @@ Proof
           wordSemTheory.get_vars_def]
 QED
 
-Theorem evaluate_stack_size_const_panLang:
-  ∀prog s res t.
-  wordSem$evaluate (prog, s) = (res,t) ∧
-  no_install prog ∧ no_install_code s.code ∧
-  no_alloc prog ∧ no_alloc_code s.code ∧
-  no_mt prog ∧ no_mt_code s.code ⇒
-  t.stack_size = s.stack_size
+Theorem share_inst_modifies:
+  wordSem$share_inst op v ad s = (res, t) ==>
+  ? ls ffi stk lsz.
+  t = (s with <| locals := ls; ffi := ffi;
+        stack := stk; locals_size := lsz |>)
 Proof
-  recInduct wordSemTheory.evaluate_ind>>
-  rw[wordSemTheory.evaluate_def,wordSemTheory.flush_state_def]>>
-  gs[wordPropsTheory.no_install_def,
-     wordPropsTheory.no_alloc_def,
-     wordPropsTheory.no_mt_def]
-  >- (FULL_CASE_TAC>>gs[wordSemTheory.get_var_def]>>
-      FULL_CASE_TAC>>gs[wordSemTheory.set_var_def]>>
-      rpt (FULL_CASE_TAC>>gs[])>>gvs[])
-  >- (rpt (FULL_CASE_TAC>>gs[])>>gvs[])
-  >- (FULL_CASE_TAC>>gs[]>>
-      drule_all inst_stack_size_const_panLang>>rw[])
-  >- (FULL_CASE_TAC>>gs[]>>gvs[])
-  >- (FULL_CASE_TAC>>gs[]>>gvs[])
-  >- (FULL_CASE_TAC>>gs[]>>gvs[])
-  >- (FULL_CASE_TAC>>gs[wordSemTheory.set_var_def]>>gvs[])
-  >- (rpt (FULL_CASE_TAC>>gs[])>>
-      gvs[wordSemTheory.get_var_def,wordSemTheory.mem_store_def])
-  >- (pairarg_tac>>gs[]>>
-      rename1 ‘evaluate _ = (res', s1)’>>Cases_on ‘res'’>>gs[]>>
-      drule_all wordPropsTheory.no_install_evaluate_const_code>>
-      strip_tac>>gs[])
-  >- (rpt (FULL_CASE_TAC>>gs[wordSemTheory.get_var_def])>>gvs[])
-  >- (rpt (FULL_CASE_TAC>>
-           gs[wordSemTheory.get_var_def,
-              wordSemTheory.jump_exc_def])>>gvs[])
-  >- (rpt (FULL_CASE_TAC>>
-           gs[wordSemTheory.get_var_def,
-              wordSemTheory.get_var_imm_def])>>gvs[])
-  >- (rpt (FULL_CASE_TAC>>
-           gs[wordSemTheory.get_var_def,
-              wordSemTheory.buffer_write_def])>>gvs[])
-  >- (rpt (FULL_CASE_TAC>>
-           gs[wordSemTheory.get_var_def,
-              wordSemTheory.buffer_write_def])>>gvs[])
-  >- (rpt (FULL_CASE_TAC>>
-           gs[wordSemTheory.get_var_def,
-              miscTheory.read_bytearray_def,
-              wordSemTheory.mem_load_byte_aux_def,
-              wordSemTheory.cut_env_def])>>
-      gvs[wordSemTheory.flush_state_def])
-  >- (Cases_on ‘op’>>
-      gs[wordSemTheory.share_inst_def,
+  Cases_on ‘op’>>
+  gs[wordSemTheory.share_inst_def,
+     wordSemTheory.sh_mem_load_def,
      wordSemTheory.sh_mem_load_def,
      wordSemTheory.sh_mem_load_byte_def,
      wordSemTheory.sh_mem_store_def,
      wordSemTheory.sh_mem_store_byte_def,
      ffiTheory.call_FFI_def]>>
-      every_case_tac>>gvs[]>>
-      fs[wordSemTheory.sh_mem_set_var_def,
+  every_case_tac >>
+  fs[wordSemTheory.sh_mem_set_var_def,
          wordSemTheory.set_var_def,
-         wordSemTheory.flush_state_def]>>gvs[])>>
-  Cases_on ‘get_vars args s’>>gs[]>>
-  Cases_on ‘bad_dest_args dest args’>>gs[]>>
-  Cases_on ‘find_code dest (add_ret_loc ret x) s.code s.stack_size’>>gs[]>>
-  rename1 ‘SOME q’>>PairCases_on ‘q’>>gs[]>>
-  drule_at Any wordPropsTheory.no_install_find_code>>strip_tac>>
-  drule_all wordPropsTheory.no_alloc_find_code>>strip_tac>>
-  drule_all wordPropsTheory.no_mt_find_code>>strip_tac>>
-  gs[wordSemTheory.set_var_def,
-     wordSemTheory.call_env_def,
-     wordSemTheory.pop_env_def]>>
-  Cases_on ‘ret’>>Cases_on ‘handler’>>rename1 ‘SOME x'’>>gs[]
-  >- (rpt (FULL_CASE_TAC>>gs[])>>gvs[])>>
-  rename1 ‘add_ret_loc (SOME x') _’>>PairCases_on ‘x'’>>gs[]>>
-  rpt (FULL_CASE_TAC>>gs[])>>gvs[]>>
-  rev_drule wordPropsTheory.no_install_evaluate_const_code>>strip_tac>>gs[]
+         wordSemTheory.flush_state_def]>>gvs[] >>
+  rw [] >>
+  simp [wordSemTheory.state_component_equality]
+QED
+
+Theorem evaluate_stack_size_const_panLang:
+  ∀prog s res t.
+  wordSem$evaluate (prog, s) = (res,t) ∧
+  no_install prog ∧ no_install_code s.code ==>
+  t.stack_size = s.stack_size
+Proof
+  recInduct (name_ind_cases [] wordSemTheory.evaluate_ind)>>
+  rw[wordSemTheory.evaluate_def,wordSemTheory.flush_state_def]>>
+  gs[wordPropsTheory.no_install_def,
+     wordPropsTheory.no_alloc_def,
+     wordPropsTheory.no_mt_def,
+     wordSemTheory.jump_exc_def,
+     wordSemTheory.get_var_def, wordSemTheory.mem_store_def]
+  >~ [`Case (Call _ _ _ _, _)`]
+  >- (
+    fs [CaseEq "option"]
+    \\ fs [CaseEq "option", CaseEq "prod", CaseEq "bool"] \\ gvs []
+    \\ imp_res_tac wordPropsTheory.no_install_find_code
+    \\ imp_res_tac wordPropsTheory.no_install_evaluate_const_code
+    \\ gs []
+    \\ gs [wordSemTheory.set_var_def, wordSemTheory.call_env_def,
+         wordSemTheory.pop_env_def]
+    \\ fs [AllCaseEqs (), UNCURRY_eq_pair] \\ gvs []
+  )
+  \\ fs [AllCaseEqs (), UNCURRY_eq_pair] \\ gvs []
+  \\ TRY (drule inst_stack_size_const_panLang)
+  \\ imp_res_tac wordPropsTheory.no_install_evaluate_const_code
+  \\ imp_res_tac share_inst_modifies
+  \\ gs []
 QED
 
 Theorem evaluate_stack_limit_const_panLang:
   ∀prog s res t.
   wordSem$evaluate (prog, s) = (res,t) ∧
-  no_install prog ∧ no_install_code s.code ∧
-  no_alloc prog ∧ no_alloc_code s.code ∧
-  no_mt prog ∧ no_mt_code s.code ⇒
+  no_install prog ∧ no_install_code s.code ==>
   t.stack_limit = s.stack_limit
 Proof
   recInduct wordSemTheory.evaluate_ind>>
