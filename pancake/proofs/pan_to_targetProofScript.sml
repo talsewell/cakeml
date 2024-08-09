@@ -985,7 +985,8 @@ QED
 Theorem evaluate_stack_size_const_panLang:
   ∀prog s res t.
   wordSem$evaluate (prog, s) = (res,t) ∧
-  no_install prog ∧ no_install_code s.code ==>
+  no_install prog ∧ no_install_code s.code ∧
+  no_alloc prog ∧ no_alloc_code s.code ==>
   t.stack_size = s.stack_size
 Proof
   recInduct (name_ind_cases [] wordSemTheory.evaluate_ind)>>
@@ -1000,6 +1001,7 @@ Proof
     fs [CaseEq "option"]
     \\ fs [CaseEq "option", CaseEq "prod", CaseEq "bool"] \\ gvs []
     \\ imp_res_tac wordPropsTheory.no_install_find_code
+    \\ imp_res_tac wordPropsTheory.no_alloc_find_code
     \\ imp_res_tac wordPropsTheory.no_install_evaluate_const_code
     \\ gs []
     \\ gs [wordSemTheory.set_var_def, wordSemTheory.call_env_def,
@@ -1016,7 +1018,8 @@ QED
 Theorem evaluate_stack_limit_const_panLang:
   ∀prog s res t.
   wordSem$evaluate (prog, s) = (res,t) ∧
-  no_install prog ∧ no_install_code s.code ==>
+  no_install prog ∧ no_install_code s.code ∧
+  no_alloc prog ∧ no_alloc_code s.code ==>
   t.stack_limit = s.stack_limit
 Proof
   recInduct wordSemTheory.evaluate_ind>>
