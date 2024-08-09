@@ -799,49 +799,6 @@ QED
 
 (* accounting for the resources *)
 
-(* TS: why are these needed? the CakeML toolchain doesn't need them.
-Theorem word_to_word_compile_no_alloc:
-  word_to_word$compile wconf aconf progs0 = (col, progs) ∧
-  ALL_DISTINCT (MAP FST progs0) ∧
-  no_mt_code (fromAList progs0) ∧
-  no_alloc_code (fromAList progs0) ⇒
-  no_alloc_code (fromAList progs)
-Proof
-  strip_tac>>gs[word_to_wordTheory.compile_def]>>
-  pairarg_tac>>gs[]>>
-  gs[wordPropsTheory.no_alloc_code_def]>>
-  gs[wordPropsTheory.no_mt_code_def]>>
-  ntac 4 strip_tac>>
-  gs[lookup_fromAList]>>
-  gvs[]>>
-  ‘LENGTH progs0 = LENGTH n_oracles’
-    by (fs[word_to_wordTheory.next_n_oracle_def]>>every_case_tac>>gvs[])>>
-  drule ALOOKUP_MEM>>strip_tac>>
-  gs[MEM_MAP]>>
-
-  rename1 ‘MEM y _’>>
-  Cases_on ‘y’>>gs[]>>
-  gs[MEM_ZIP]>>
-  rename1 ‘q = EL _ progs0’>>Cases_on ‘q’>>gs[]>>
-  rename1 ‘(_,r') = EL _ progs0’>>Cases_on ‘r'’>>gs[]>>
-  last_x_assum $ qspecl_then [‘q'’,‘q’, ‘r''’] assume_tac>>
-  drule_at Any ALOOKUP_ALL_DISTINCT_EL>>
-  disch_then $ qspec_then ‘n'’ assume_tac>>gs[]>>
-  qpat_x_assum ‘_ = EL _ progs0’ $ assume_tac o GSYM>>
-  gs[]>>
-  ‘no_mt (SND (SND (FST ((q', q, r''), r))))’ by gs[]>>
-  imp_res_tac word_to_wordProofTheory.no_mt_full_compile_single>>
-  qmatch_asmsub_abbrev_tac ‘full_compile_single ac kk wc _ _’>>
-  first_x_assum $ qspecl_then [‘ac’, ‘kk’, ‘aconf’, ‘wc’] assume_tac>>
-  gs[]>>
-  pop_assum $ (fn h => gs[h])>>
-  last_x_assum $ qspecl_then [‘q'’,‘q’, ‘r''’] assume_tac>>gs[]>>
-  irule word_to_wordProofTheory.compile_single_no_alloc>>
-  pop_assum $ irule_at Any>>
-  MAP_EVERY qexists_tac [‘ac’, ‘kk’, ‘n’, ‘q'’, ‘r’, ‘aconf’, ‘q’, ‘wc’]>>
-  qpat_x_assum ‘(k,n,p) = _’ $ assume_tac o GSYM>>gs[]
-QED
-
 Theorem word_to_word_compile_no_install:
   word_to_word$compile wconf aconf progs0 = (col, progs) ∧
   ALL_DISTINCT (MAP FST progs0) ∧
@@ -850,76 +807,26 @@ Theorem word_to_word_compile_no_install:
   no_install_code (fromAList progs)
 Proof
   strip_tac>>gs[word_to_wordTheory.compile_def]>>
-  pairarg_tac>>gs[]>>
-  gs[wordPropsTheory.no_install_code_def]>>
-  gs[wordPropsTheory.no_mt_code_def]>>
-  ntac 4 strip_tac>>
-  gs[lookup_fromAList]>>
+  rpt (pairarg_tac>>gs[])>>
   gvs[]>>
-  ‘LENGTH progs0 = LENGTH n_oracles’
-    by (fs[word_to_wordTheory.next_n_oracle_def]>>every_case_tac>>gvs[])>>
+  DEP_REWRITE_TAC[word_to_wordProofTheory.no_mt_code_full_compile_single]>>
+  simp []>>
+  conj_asm1_tac >- (
+    fs[word_to_wordTheory.next_n_oracle_def]>>every_case_tac>>gvs[]
+  )>>
+  fs[wordPropsTheory.no_install_code_def, lookup_fromAList]>>
+  rw[]>>
   drule ALOOKUP_MEM>>strip_tac>>
   gs[MEM_MAP]>>
-  rename1 ‘MEM y _’>>
-  Cases_on ‘y’>>gs[]>>
+  fs[PAIR_FST_SND_EQ, wordPropsTheory.no_install_subprogs_def]>>
+  irule word_to_wordProofTheory.compile_single_not_created>>
+  first_x_assum irule>>
   gs[MEM_ZIP]>>
-  rename1 ‘q = EL _ progs0’>>Cases_on ‘q’>>gs[]>>
-  rename1 ‘(_,r') = EL _ progs0’>>Cases_on ‘r'’>>gs[]>>
-  last_x_assum $ qspecl_then [‘q'’,‘q’, ‘r''’] assume_tac>>
   drule_at Any ALOOKUP_ALL_DISTINCT_EL>>
-  disch_then $ qspec_then ‘n'’ assume_tac>>gs[]>>
-  qpat_x_assum ‘_ = EL _ progs0’ $ assume_tac o GSYM>>
-  gs[]>>
-  ‘no_mt (SND (SND (FST ((q', q, r''), r))))’ by gs[]>>
-  imp_res_tac word_to_wordProofTheory.no_mt_full_compile_single>>
-  qmatch_asmsub_abbrev_tac ‘full_compile_single ac kk wc _ _’>>
-  first_x_assum $ qspecl_then [‘ac’, ‘kk’, ‘aconf’, ‘wc’] assume_tac>>
-  gs[]>>
-  pop_assum $ (fn h => gs[h])>>
-  last_x_assum $ qspecl_then [‘q'’,‘q’, ‘r''’] assume_tac>>gs[]>>
-  irule word_to_wordProofTheory.compile_single_no_install>>
-  pop_assum $ irule_at Any>>
-  MAP_EVERY qexists_tac [‘ac’, ‘kk’, ‘n’, ‘q'’, ‘r’, ‘aconf’, ‘q’, ‘wc’]>>
-  qpat_x_assum ‘(k,n,p) = _’ $ assume_tac o GSYM>>gs[]
+  rw[]>>
+  drule_then (irule_at Any) EQ_TRANS>>
+  simp[PAIR_FST_SND_EQ]
 QED
-
-Theorem word_to_word_compile_no_mt:
-  word_to_word$compile wconf aconf progs0 = (col, progs) ∧
-  ALL_DISTINCT (MAP FST progs0) ∧
-  no_mt_code (fromAList progs0) ⇒
-  no_mt_code (fromAList progs)
-Proof
-  strip_tac>>gs[word_to_wordTheory.compile_def]>>
-  pairarg_tac>>gs[]>>
-  gs[wordPropsTheory.no_mt_code_def]>>
-  ntac 4 strip_tac>>
-  gs[lookup_fromAList]>>
-  gvs[]>>
-  ‘LENGTH progs0 = LENGTH n_oracles’
-    by (fs[word_to_wordTheory.next_n_oracle_def]>>every_case_tac>>gvs[])>>
-  drule ALOOKUP_MEM>>strip_tac>>
-  gs[MEM_MAP]>>
-  rename1 ‘MEM y _’>>
-  Cases_on ‘y’>>gs[]>>
-  gs[MEM_ZIP]>>
-  rename1 ‘q = EL _ progs0’>>Cases_on ‘q’>>gs[]>>
-  rename1 ‘(_,r') = EL _ progs0’>>Cases_on ‘r'’>>gs[]>>
-  last_x_assum $ qspecl_then [‘q'’,‘q’, ‘r''’] assume_tac>>
-  drule_at Any ALOOKUP_ALL_DISTINCT_EL>>
-  disch_then $ qspec_then ‘n'’ assume_tac>>gs[]>>
-  qpat_x_assum ‘_ = EL _ progs0’ $ assume_tac o GSYM>>
-  gs[]>>
-  ‘no_mt (SND (SND (FST ((q', q, r''), r))))’ by gs[]>>
-  imp_res_tac word_to_wordProofTheory.no_mt_full_compile_single>>
-  qmatch_asmsub_abbrev_tac ‘full_compile_single ac kk wc _ _’>>
-  first_x_assum $ qspecl_then [‘ac’, ‘kk’, ‘aconf’, ‘wc’] assume_tac>>
-  gs[]>>
-  irule word_to_wordProofTheory.compile_single_no_mt>>
-  first_assum $ irule_at Any>>
-  MAP_EVERY qexists_tac [‘ac’, ‘kk’, ‘n’, ‘q'’, ‘r’, ‘aconf’, ‘q’, ‘wc’]>>
-  qpat_x_assum ‘(k,n,p) = _’ $ assume_tac o GSYM>>gs[]
-QED
-*)
 
 (* TS: are these needed? they're not referenced anywhere else in the repo
 Theorem no_alloc_word_evaluate:
@@ -1200,6 +1107,7 @@ Proof
   Cases_on ‘x’>>fs[]
 QED
 
+
 Theorem from_pan_to_lab_no_install:
   ALL_DISTINCT (MAP FST pan_code) ∧
   pan_to_word_compile_prog isa pan_code = wprog0 ∧
@@ -1216,7 +1124,7 @@ Proof
   drule_all word_to_word_compile_no_install>>strip_tac>>
   ‘MAP FST wprog0 = MAP FST wprog’ by
     (drule compile_to_word_conventions2>>gvs[])>>fs[]>>
-  drule_all word_to_stackProofTheory.word_to_stack_comple_no_install>>strip_tac>>
+  drule_all word_to_stackProofTheory.word_to_stack_compile_no_install>>strip_tac>>
   irule (SRULE[] $ stack_to_labProofTheory.stack_to_lab_compile_no_install)>>fs[]
 QED
 
@@ -2160,9 +2068,8 @@ Proof
        wordPropsTheory.no_mt_def,
        wordPropsTheory.no_alloc_def,
        wordPropsTheory.no_install_def]>>
-    drule_all word_to_word_compile_no_mt>>strip_tac>>
     drule_all word_to_word_compile_no_install>>strip_tac>>
-    drule_all word_to_word_compile_no_alloc>>strip_tac>>gs[])>>
+    gs[])>>
   strip_tac>>
 
   gs[backendProofTheory.read_limits_def]>>
