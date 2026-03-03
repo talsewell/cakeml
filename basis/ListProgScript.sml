@@ -6,6 +6,7 @@ Ancestors
   mergesort std_prelude mllist ml_translator OptionProg
 Libs
   preamble ml_translatorLib ml_progLib cfLib basisFunctionsLib
+  ml_monad_translator_interfaceLib
 
 val _ = translation_extends "OptionProg"
 
@@ -340,6 +341,40 @@ val _ = (next_ml_names := ["compare"]);
 val _ = translate mllistTheory.list_compare_def;
 
 val _ = ml_prog_update open_local_block;
+
+(* This section defines a monadic variant of the heap-list sort and translates
+   it to CakeML AST. It would be preferred if the monadic versions could be
+   defined elsewhere and only translated to CakeML here, but issues with the
+   current monadic translator prevent that.
+   (see github.com/cakeml/cakeml/issues/1342 ) *)
+
+(* Config to use monadic translator temporarily. *)
+val _ = ml_translatorLib.use_sub_check true;
+
+Datatype:
+  state_refs = <|
+                 heap_array : ( 'a ) list;
+                 sz_array : num list;
+                |>
+End
+
+val tvar = ``: 'state``;
+
+val state_type = ``: ( ^tvar ) state_refs``;
+
+Datatype:
+  state_exn = Fail string | Subscript
+End
+
+val config = local_state_config |>
+              with_state state_type |>
+              with_exception ``:state_exn`` |>
+              with_resizeable_arrays [
+                ("heap_array", listSyntax.mk_list ([], tvar), ``Subscript``, ``Subscript``),
+                ("sz_array", ``[] : num list``, ``Subscript``, ``Subscript``)
+              ];
+
+
 
 val result = translate sort2_tail_def;
 val result = translate sort3_tail_def;
